@@ -1153,6 +1153,49 @@ When creating pull requests, add the following footer at the end of the PR descr
     return this.sessions.get(taskRunId);
   }
 
+  getDebugSnapshot(): {
+    sessions: Array<{
+      taskRunId: string;
+      taskId: string;
+      repoPath: string;
+      adapter: string;
+      model: string | null;
+      sessionId: string | null;
+      channel: string;
+      createdAt: number;
+      lastActivityAt: number;
+      promptPending: boolean;
+      inFlightToolCalls: number;
+      idleDeadline: number | null;
+    }>;
+    pendingPermissions: Array<{
+      taskRunId: string;
+      toolCallId: string;
+    }>;
+  } {
+    const sessions = [...this.sessions.values()].map((session) => ({
+      taskRunId: session.taskRunId,
+      taskId: session.taskId,
+      repoPath: session.repoPath,
+      adapter: session.config.adapter ?? "claude",
+      model: session.config.model ?? null,
+      sessionId: session.config.sessionId ?? null,
+      channel: session.channel,
+      createdAt: session.createdAt,
+      lastActivityAt: session.lastActivityAt,
+      promptPending: session.promptPending,
+      inFlightToolCalls: session.inFlightMcpToolCalls.size,
+      idleDeadline: this.idleTimeouts.get(session.taskRunId)?.deadline ?? null,
+    }));
+    const pendingPermissions = [...this.pendingPermissions.values()].map(
+      (perm) => ({
+        taskRunId: perm.taskRunId,
+        toolCallId: perm.toolCallId,
+      }),
+    );
+    return { sessions, pendingPermissions };
+  }
+
   async setSessionConfigOption(
     sessionId: string,
     configId: string,

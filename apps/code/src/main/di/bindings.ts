@@ -103,6 +103,7 @@ import type {
 } from "@posthog/platform/analytics";
 import type { APP_LIFECYCLE_SERVICE } from "@posthog/platform/app-lifecycle";
 import type { APP_META_SERVICE } from "@posthog/platform/app-meta";
+import type { APP_METRICS_SERVICE } from "@posthog/platform/app-metrics";
 import type { BUNDLED_RESOURCES_SERVICE } from "@posthog/platform/bundled-resources";
 import type { CLIPBOARD_SERVICE } from "@posthog/platform/clipboard";
 import type { CONTEXT_MENU_SERVICE } from "@posthog/platform/context-menu";
@@ -122,11 +123,13 @@ import type { WORKSPACE_SETTINGS_SERVICE } from "@posthog/platform/workspace-set
 import type { WorkspaceClient } from "@posthog/workspace-client/client";
 import type { DatabaseService } from "@posthog/workspace-server/db/service";
 import type { GIT_SERVICE as WS_GIT_SERVICE } from "@posthog/workspace-server/di/tokens";
+import type { AgentService } from "@posthog/workspace-server/services/agent/agent";
 import type {
   AGENT_AUTH,
   AGENT_LOGGER,
   AGENT_MCP_APPS,
   AGENT_REPO_FILES,
+  AGENT_SERVICE,
   AGENT_SLEEP_COORDINATOR,
 } from "@posthog/workspace-server/services/agent/identifiers";
 import type {
@@ -203,6 +206,7 @@ import type { WorkspaceService } from "@posthog/workspace-server/services/worksp
 import type { FileWatcherBridge } from "../index";
 import type { ElectronAppLifecycle } from "../platform-adapters/electron-app-lifecycle";
 import type { ElectronAppMeta } from "../platform-adapters/electron-app-meta";
+import type { ElectronAppMetrics } from "../platform-adapters/electron-app-metrics";
 import type { ElectronBundledResources } from "../platform-adapters/electron-bundled-resources";
 import type { ElectronClipboard } from "../platform-adapters/electron-clipboard";
 import type { ElectronContextMenu } from "../platform-adapters/electron-context-menu";
@@ -227,6 +231,11 @@ import type {
   TokenCipherPortAdapter,
 } from "../services/auth/port-adapters";
 import type { DeepLinkService } from "../services/deep-link/service";
+import type { DevActionsService } from "../services/dev-actions/service";
+import type { DevFlagsService } from "../services/dev-flags/service";
+import type { DevLogsService } from "../services/dev-logs/service";
+import type { DevMetricsService } from "../services/dev-metrics/service";
+import type { DevNetworkService } from "../services/dev-network/service";
 import type { EncryptionService } from "../services/encryption/service";
 import type { SecureStoreService } from "../services/secure-store/service";
 import type { settingsStore } from "../services/settingsStore";
@@ -243,6 +252,11 @@ import type {
   DATABASE_SERVICE as MAIN_DATABASE_SERVICE,
   DEEP_LINK_SERVICE as MAIN_DEEP_LINK_SERVICE,
   DEFAULT_ADDITIONAL_DIRECTORY_REPOSITORY as MAIN_DEFAULT_ADDITIONAL_DIRECTORY_REPOSITORY,
+  DEV_ACTIONS_SERVICE as MAIN_DEV_ACTIONS_SERVICE,
+  DEV_FLAGS_SERVICE as MAIN_DEV_FLAGS_SERVICE,
+  DEV_LOGS_SERVICE as MAIN_DEV_LOGS_SERVICE,
+  DEV_METRICS_SERVICE as MAIN_DEV_METRICS_SERVICE,
+  DEV_NETWORK_SERVICE as MAIN_DEV_NETWORK_SERVICE,
   ENCRYPTION_SERVICE as MAIN_ENCRYPTION_SERVICE,
   EXTERNAL_APPS_SERVICE as MAIN_EXTERNAL_APPS_SERVICE,
   FILE_WATCHER_SERVICE as MAIN_FILE_WATCHER_SERVICE,
@@ -292,6 +306,7 @@ export interface MainBindings {
   [BUNDLED_RESOURCES_SERVICE]: ElectronBundledResources;
   [IMAGE_PROCESSOR_SERVICE]: ElectronImageProcessor;
   [WORKSPACE_SETTINGS_SERVICE]: ElectronWorkspaceSettings;
+  [APP_METRICS_SERVICE]: ElectronAppMetrics;
 
   // Database (main aliases + ws-server source tokens via toService)
   [MAIN_DATABASE_SERVICE]: DatabaseService;
@@ -426,6 +441,13 @@ export interface MainBindings {
   [MAIN_ENCRYPTION_SERVICE]: EncryptionService;
   [CANVAS_GEN_SERVICE]: CanvasGenService;
 
+  // Dev toolbar diagnostics
+  [MAIN_DEV_FLAGS_SERVICE]: DevFlagsService;
+  [MAIN_DEV_METRICS_SERVICE]: DevMetricsService;
+  [MAIN_DEV_NETWORK_SERVICE]: DevNetworkService;
+  [MAIN_DEV_LOGS_SERVICE]: DevLogsService;
+  [MAIN_DEV_ACTIONS_SERVICE]: DevActionsService;
+
   // ws-server git service (bound to(GitService))
   [WS_GIT_SERVICE]: GitService;
 
@@ -443,6 +465,7 @@ export interface MainBindings {
   [FS_SERVICE]: FsCapability;
 
   // Typed container.get-only tokens (bound via loaded modules)
+  [AGENT_SERVICE]: AgentService;
   [OAUTH_SERVICE]: OAuthService;
   [GITHUB_INTEGRATION_SERVICE]: GitHubIntegrationService;
   [SLACK_INTEGRATION_SERVICE]: SlackIntegrationService;

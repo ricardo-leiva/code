@@ -51,6 +51,8 @@ import { MAIN_TOKENS } from "./di/tokens";
 import { posthogNodeAnalytics } from "./platform-adapters/posthog-analytics";
 import { registerMcpSandboxProtocol } from "./protocols/mcp-sandbox";
 import type { AppLifecycleService } from "./services/app-lifecycle/service";
+import type { DevLogsService } from "./services/dev-logs/service";
+import type { DevNetworkService } from "./services/dev-network/service";
 import {
   focusSessionStore,
   focusWorktreePaths,
@@ -217,6 +219,9 @@ app.on("child-process-gone", (_event, details) => {
 });
 
 async function initializeServices(): Promise<void> {
+  container.get<DevNetworkService>(MAIN_TOKENS.DevNetworkService).install();
+  container.get<DevLogsService>(MAIN_TOKENS.DevLogsService).install();
+
   container.get<DatabaseService>(MAIN_TOKENS.DatabaseService);
   container.get<OAuthService>(OAUTH_SERVICE);
   const authService = container.get<AuthService>(MAIN_TOKENS.AuthService);

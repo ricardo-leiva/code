@@ -95,6 +95,7 @@ import { CanvasGenService } from "@posthog/host-router/services/canvas-gen.servi
 import { ANALYTICS_SERVICE } from "@posthog/platform/analytics";
 import { APP_LIFECYCLE_SERVICE } from "@posthog/platform/app-lifecycle";
 import { APP_META_SERVICE } from "@posthog/platform/app-meta";
+import { APP_METRICS_SERVICE } from "@posthog/platform/app-metrics";
 import { BUNDLED_RESOURCES_SERVICE } from "@posthog/platform/bundled-resources";
 import { CLIPBOARD_SERVICE } from "@posthog/platform/clipboard";
 import { CONTEXT_MENU_SERVICE } from "@posthog/platform/context-menu";
@@ -210,6 +211,7 @@ import ExternalAppsStoreImpl from "electron-store";
 import type { FileWatcherBridge } from "../index";
 import { ElectronAppLifecycle } from "../platform-adapters/electron-app-lifecycle";
 import { ElectronAppMeta } from "../platform-adapters/electron-app-meta";
+import { ElectronAppMetrics } from "../platform-adapters/electron-app-metrics";
 import { ElectronBundledResources } from "../platform-adapters/electron-bundled-resources";
 import { ElectronClipboard } from "../platform-adapters/electron-clipboard";
 import { ElectronContextMenu } from "../platform-adapters/electron-context-menu";
@@ -236,6 +238,11 @@ import {
   TokenCipherPortAdapter,
 } from "../services/auth/port-adapters";
 import { DeepLinkService } from "../services/deep-link/service";
+import { DevActionsService } from "../services/dev-actions/service";
+import { DevFlagsService } from "../services/dev-flags/service";
+import { DevLogsService } from "../services/dev-logs/service";
+import { DevMetricsService } from "../services/dev-metrics/service";
+import { DevNetworkService } from "../services/dev-network/service";
 import { EncryptionService } from "../services/encryption/service";
 import { SecureStoreService } from "../services/secure-store/service";
 import { settingsStore } from "../services/settingsStore";
@@ -255,6 +262,11 @@ import {
   DATABASE_SERVICE as MAIN_DATABASE_SERVICE,
   DEEP_LINK_SERVICE as MAIN_DEEP_LINK_SERVICE,
   DEFAULT_ADDITIONAL_DIRECTORY_REPOSITORY as MAIN_DEFAULT_ADDITIONAL_DIRECTORY_REPOSITORY,
+  DEV_ACTIONS_SERVICE as MAIN_DEV_ACTIONS_SERVICE,
+  DEV_FLAGS_SERVICE as MAIN_DEV_FLAGS_SERVICE,
+  DEV_LOGS_SERVICE as MAIN_DEV_LOGS_SERVICE,
+  DEV_METRICS_SERVICE as MAIN_DEV_METRICS_SERVICE,
+  DEV_NETWORK_SERVICE as MAIN_DEV_NETWORK_SERVICE,
   ENCRYPTION_SERVICE as MAIN_ENCRYPTION_SERVICE,
   EXTERNAL_APPS_SERVICE as MAIN_EXTERNAL_APPS_SERVICE,
   FS_SERVICE as MAIN_FS_SERVICE,
@@ -305,6 +317,7 @@ container.bind(CONTEXT_MENU_SERVICE).to(ElectronContextMenu);
 container.bind(BUNDLED_RESOURCES_SERVICE).to(ElectronBundledResources);
 container.bind(IMAGE_PROCESSOR_SERVICE).to(ElectronImageProcessor);
 container.bind(WORKSPACE_SETTINGS_SERVICE).to(ElectronWorkspaceSettings);
+container.bind(APP_METRICS_SERVICE).to(ElectronAppMetrics);
 
 container.load(databaseModule);
 container.load(repositoriesModule);
@@ -708,3 +721,9 @@ container.bind(MAIN_ENCRYPTION_SERVICE).to(EncryptionService);
 // host-router routers.
 container.load(canvasCoreModule);
 container.bind(CANVAS_GEN_SERVICE).to(CanvasGenService).inSingletonScope();
+
+container.bind(MAIN_DEV_FLAGS_SERVICE).to(DevFlagsService);
+container.bind(MAIN_DEV_METRICS_SERVICE).to(DevMetricsService);
+container.bind(MAIN_DEV_NETWORK_SERVICE).to(DevNetworkService);
+container.bind(MAIN_DEV_LOGS_SERVICE).to(DevLogsService);
+container.bind(MAIN_DEV_ACTIONS_SERVICE).to(DevActionsService);

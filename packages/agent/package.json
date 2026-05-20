@@ -151,8 +151,7 @@
   "files": [
     "dist/**/*",
     "src/**/*",
-    "README.md",
-    "CLAUDE.md"
+    "README.md"
   ],
   "publishConfig": {
     "access": "public"

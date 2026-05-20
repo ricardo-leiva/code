@@ -207,7 +207,7 @@ function RootLayout() {
 
   if (isChannelsSpace) {
     return (
-      <Flex height="100vh">
+      <Flex height="100%">
         <AppNav />
         <Flex direction="column" flexGrow="1" overflow="hidden">
           <Flex flexGrow="1" overflow="hidden">
@@ -263,7 +263,7 @@ function RootLayout() {
 
   if (isSettingsRoute) {
     return (
-      <Flex direction="column" height="100vh">
+      <Flex direction="column" height="100%">
         <Outlet />
         <CommandMenu open={commandMenuOpen} onOpenChange={setCommandMenuOpen} />
         <KeyboardShortcutsSheet
@@ -286,7 +286,7 @@ function RootLayout() {
   }
 
   return (
-    <Flex height="100vh">
+    <Flex height="100%">
       {bluebirdEnabled && <AppNav />}
       <Flex direction="column" flexGrow="1" overflow="hidden">
         <HeaderRow />

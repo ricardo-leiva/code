@@ -115,6 +115,21 @@ export const WORKSPACE_SERVICE = Symbol.for(
 export const WORKSPACE_SERVER_SERVICE = Symbol.for(
   "posthog.host.main.workspace-server.service",
 );
+export const DEV_FLAGS_SERVICE = Symbol.for(
+  "posthog.host.main.dev-flags.service",
+);
+export const DEV_METRICS_SERVICE = Symbol.for(
+  "posthog.host.main.dev-metrics.service",
+);
+export const DEV_NETWORK_SERVICE = Symbol.for(
+  "posthog.host.main.dev-network.service",
+);
+export const DEV_LOGS_SERVICE = Symbol.for(
+  "posthog.host.main.dev-logs.service",
+);
+export const DEV_ACTIONS_SERVICE = Symbol.for(
+  "posthog.host.main.dev-actions.service",
+);
 
 export const MAIN_TOKENS = Object.freeze({
   WorkspaceClient: WORKSPACE_CLIENT,
@@ -159,4 +174,9 @@ export const MAIN_TOKENS = Object.freeze({
   ProvisioningService: PROVISIONING_SERVICE,
   WorkspaceService: WORKSPACE_SERVICE,
   WorkspaceServerService: WORKSPACE_SERVER_SERVICE,
+  DevFlagsService: DEV_FLAGS_SERVICE,
+  DevMetricsService: DEV_METRICS_SERVICE,
+  DevNetworkService: DEV_NETWORK_SERVICE,
+  DevLogsService: DEV_LOGS_SERVICE,
+  DevActionsService: DEV_ACTIONS_SERVICE,
 });

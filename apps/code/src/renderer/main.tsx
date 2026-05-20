@@ -12,6 +12,7 @@ import "@renderer/platform-adapters/updates";
 // Side effect: attaches window focus/visibility listeners so `focused` is accurate before inbox queries mount.
 import "@posthog/ui/shell/rendererWindowFocusStore";
 import { Providers } from "@components/Providers";
+import { DevToolbarHost } from "@features/dev-toolbar/DevToolbarHost";
 import { preloadHighlighter } from "@pierre/diffs";
 import { boot } from "@posthog/di/contribution";
 import { ServiceProvider } from "@posthog/di/react";
@@ -90,7 +91,7 @@ ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <ServiceProvider container={container}>
       <Providers>
-        <App />
+        <App devToolbar={<DevToolbarHost />} />
       </Providers>
     </ServiceProvider>
   </React.StrictMode>,

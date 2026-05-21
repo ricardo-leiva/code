@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { useDevFlagsStore } from "@features/dev-toolbar/devFlagsStore";
 import { TypedContainer } from "@inversifyjs/strongly-typed";
 import type { TrpcRouter } from "@main/trpc/router";
 import {
@@ -105,16 +106,16 @@ import {
   localHandoffNotifier,
 } from "@posthog/ui/features/sessions/localHandoffService";
 import { getSessionService } from "@posthog/ui/features/sessions/sessionServiceHost";
+import {
+  DEV_MODE_CLIENT,
+  type DevModeClient,
+} from "@posthog/ui/features/settings/devModeClient";
 import { taskCreationEffects } from "@posthog/ui/features/task-detail/taskCreationEffectsImpl";
 import { TrpcTaskCreationHost } from "@posthog/ui/features/task-detail/taskCreationHostImpl";
 import {
   SHELL_CLIENT,
   type ShellClient,
 } from "@posthog/ui/features/terminal/shellClient";
-import {
-  DEV_MODE_CLIENT,
-  type DevModeClient,
-} from "@posthog/ui/features/settings/devModeClient";
 import { updatesClient } from "@posthog/ui/features/updates/updatesAdapter";
 import { UPDATES_CLIENT } from "@posthog/ui/features/updates/updatesClient";
 import {
@@ -124,7 +125,6 @@ import {
 import { DIFF_WORKER_FACTORY } from "@posthog/ui/shell/diffWorkerHost";
 import { HOST_LOGGER } from "@posthog/ui/shell/logger";
 import { posthogAnalyticsTracker } from "@posthog/ui/shell/posthogAnalyticsImpl";
-import { useDevFlagsStore } from "@features/dev-toolbar/devFlagsStore";
 import {
   diffWorkerFactory,
   reviewHost,

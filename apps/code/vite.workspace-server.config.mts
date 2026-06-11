@@ -24,8 +24,9 @@ const nativeModules = new Set([
   "file-icon",
 ]);
 
-const isExternal = (id: string): boolean =>
-  nodeBuiltins.has(id) || nativeModules.has(id);
+// Rolldown-backed Vite requires external entries to be strings or RegExps;
+// a predicate function is rejected when merged with ssr.external.
+const externalModules = [...nodeBuiltins, ...nativeModules];
 
 export default defineConfig({
   resolve: {
@@ -55,7 +56,7 @@ export default defineConfig({
       output: {
         entryFileNames: "workspace-server.js",
       },
-      external: isExternal,
+      external: externalModules,
     },
   },
 });

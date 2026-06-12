@@ -97,6 +97,10 @@ interface TaskRunStateEvent {
   completed_at?: string | null;
 }
 
+// Which endpoint a stream connection reads from. Event ids are only meaningful within
+// the leg that issued them: the proxy and Django id spaces are unrelated.
+type StreamLeg = "proxy" | "django";
+
 interface WatcherState {
   taskId: string;
   runId: string;
@@ -112,6 +116,9 @@ interface WatcherState {
   streamErrorAttempts: number;
   cumulativeReconnectAttempts: number;
   lastEventId: string | null;
+  // Leg that issued lastEventId, and the leg of the connection currently being read.
+  lastEventIdLeg: StreamLeg | null;
+  streamLeg: StreamLeg | null;
   lastStatus: TaskRunStatus | null;
   lastStage: string | null;
   lastOutput: Record<string, unknown> | null;
@@ -344,6 +351,8 @@ export class CloudTaskService extends TypedEventEmitter<CloudTaskEvents> {
     watcher.streamEnded = false;
     watcher.selfHealAttempted = false;
     watcher.lastEventId = null;
+    watcher.lastEventIdLeg = null;
+    watcher.streamLeg = null;
     watcher.totalEntryCount = 0;
     watcher.isBootstrapping = false;
     watcher.streamTargetResolved = false;
@@ -457,6 +466,8 @@ export class CloudTaskService extends TypedEventEmitter<CloudTaskEvents> {
       streamErrorAttempts: 0,
       cumulativeReconnectAttempts: 0,
       lastEventId: null,
+      lastEventIdLeg: null,
+      streamLeg: null,
       lastStatus: null,
       lastStage: null,
       lastOutput: null,
@@ -677,6 +688,20 @@ export class CloudTaskService extends TypedEventEmitter<CloudTaskEvents> {
     const base = usingProxy
       ? watcher.streamBaseUrl?.replace(/\/+$/, "")
       : watcher.apiHost;
+    const leg: StreamLeg = usingProxy ? "proxy" : "django";
+    // Resuming a proxy stream from a Django id (or vice versa) is undefined: the id
+    // spaces are unrelated. Drop the resume position on a leg switch and let
+    // start=latest plus the next snapshot cover the gap.
+    if (watcher.lastEventId && watcher.lastEventIdLeg !== leg) {
+      this.log.info("Cloud task stream leg changed, dropping resume position", {
+        key,
+        from: watcher.lastEventIdLeg,
+        to: leg,
+      });
+      watcher.lastEventId = null;
+      watcher.lastEventIdLeg = null;
+    }
+    watcher.streamLeg = leg;
     // The proxy exposes a clean run-scoped path; the run-scoped token carries team and task.
     const url = new URL(
       usingProxy
@@ -845,6 +870,7 @@ export class CloudTaskService extends TypedEventEmitter<CloudTaskEvents> {
 
     if (event.id) {
       watcher.lastEventId = event.id;
+      watcher.lastEventIdLeg = watcher.streamLeg;
     }
 
     if (event.event === "error") {

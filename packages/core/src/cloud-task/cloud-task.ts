@@ -126,6 +126,9 @@ interface WatcherState {
   needsPostBootstrapReconnect: boolean;
   needsStopAfterBootstrap: boolean;
   streamEnded: boolean;
+  // True once the watcher has consumed its one automatic re-bootstrap recovery for the
+  // current trouble window; re-armed by a real data event or a healthy-length connection.
+  selfHealAttempted: boolean;
   // Read-leg routing, resolved once from the stream_token endpoint and reused across reconnects.
   // streamBaseUrl set => read via the agent-proxy with streamReadToken; null => read from Django.
   streamTargetResolved: boolean;
@@ -339,6 +342,7 @@ export class CloudTaskService extends TypedEventEmitter<CloudTaskEvents> {
     watcher.needsPostBootstrapReconnect = false;
     watcher.needsStopAfterBootstrap = false;
     watcher.streamEnded = false;
+    watcher.selfHealAttempted = false;
     watcher.lastEventId = null;
     watcher.totalEntryCount = 0;
     watcher.isBootstrapping = false;
@@ -467,6 +471,7 @@ export class CloudTaskService extends TypedEventEmitter<CloudTaskEvents> {
       needsPostBootstrapReconnect: false,
       needsStopAfterBootstrap: false,
       streamEnded: false,
+      selfHealAttempted: false,
       streamTargetResolved: false,
       streamBaseUrl: null,
       streamReadToken: null,
@@ -774,6 +779,7 @@ export class CloudTaskService extends TypedEventEmitter<CloudTaskEvents> {
         Date.now() - connectedAt >= SSE_HEALTHY_CONNECTION_MS
       ) {
         completedWatcher.cumulativeReconnectAttempts = 0;
+        completedWatcher.selfHealAttempted = false;
       }
 
       await this.handleStreamCompletion(key, { reconnectOnDisconnect: true });
@@ -810,6 +816,7 @@ export class CloudTaskService extends TypedEventEmitter<CloudTaskEvents> {
           // Same as the clean-EOF path: a healthy-length connection proves this is
           // timeout cycling, not a loop, so an idle run never exhausts the budget.
           watcher.cumulativeReconnectAttempts = 0;
+          watcher.selfHealAttempted = false;
         }
       }
 
@@ -872,9 +879,10 @@ export class CloudTaskService extends TypedEventEmitter<CloudTaskEvents> {
     }
 
     // A real data event proves the stream materialized; clear the backend-error
-    // and cumulative budgets too.
+    // and cumulative budgets too, and re-arm the one-shot self-heal recovery.
     watcher.streamErrorAttempts = 0;
     watcher.cumulativeReconnectAttempts = 0;
+    watcher.selfHealAttempted = false;
 
     if (isTaskRunStateEvent(event.data)) {
       if (this.applyTaskRunState(watcher, event.data)) {
@@ -1154,6 +1162,23 @@ export class CloudTaskService extends TypedEventEmitter<CloudTaskEvents> {
     if (
       watcher.cumulativeReconnectAttempts > MAX_CUMULATIVE_RECONNECT_ATTEMPTS
     ) {
+      // A poisoned resume position (a Last-Event-ID the server answers with instant
+      // empty streams) burns through the budget without a single error frame. Before
+      // surfacing a failure, rebuild once from scratch — fresh read leg, fresh snapshot,
+      // no resume position — the same recovery an app restart performs. A data event or
+      // a healthy-length connection re-arms the attempt; if the rebuilt watcher loops
+      // straight back here, fail for real.
+      if (!watcher.selfHealAttempted) {
+        watcher.reconnectTimeoutId = null;
+        this.log.warn(
+          "Cloud task stream looping without events, re-bootstrapping",
+          { key },
+        );
+        this.resetWatcherForRebootstrap(watcher);
+        watcher.selfHealAttempted = true;
+        void this.bootstrapWatcher(key);
+        return;
+      }
       this.failWatcher(key, {
         title: "Cloud run unreachable",
         message:

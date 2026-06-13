@@ -433,28 +433,59 @@ export class WorkspaceService extends TypedEventEmitter<WorkspaceServiceEvents> 
   ): Promise<CheckWorktreeBranchOutput> {
     const { mainRepoPath, branch } = options;
 
-    const defaultBranch = await getDefaultBranch(mainRepoPath, {
-      abortSignal: signal,
-    }).catch(() =>
-      getCurrentBranch(mainRepoPath, { abortSignal: signal }).then(
-        (b) => b ?? "main",
+    const [existingWorktree, defaultBranch] = await Promise.all([
+      this.findExistingWorktreeForBranch(mainRepoPath, branch),
+      getDefaultBranch(mainRepoPath, { abortSignal: signal }).catch(() =>
+        getCurrentBranch(mainRepoPath, { abortSignal: signal }).then(
+          (b) => b ?? "main",
+        ),
       ),
-    );
+    ]);
+    const existingWorktreePath = existingWorktree?.worktreePath ?? null;
     if (branch === defaultBranch) {
-      return { status: "trunk" };
+      return { status: "trunk", existingWorktreePath };
     }
 
     if (await branchExists(mainRepoPath, branch, { abortSignal: signal })) {
-      return { status: "local" };
+      return { status: "local", existingWorktreePath };
     }
 
     if (
       await remoteBranchExists(mainRepoPath, branch, { abortSignal: signal })
     ) {
-      return { status: "remote-only" };
+      return { status: "remote-only", existingWorktreePath };
     }
 
-    return { status: "missing" };
+    return { status: "missing", existingWorktreePath };
+  }
+
+  /**
+   * Finds a PostHog-managed worktree (under the worktree base path) already
+   * checked out on `branch`, returning it as a `WorktreeInfo` ready to reuse, or
+   * null when none exists. Only base-path worktrees are considered because the
+   * task<->worktree association re-derives paths from the base path and name.
+   */
+  private async findExistingWorktreeForBranch(
+    mainRepoPath: string,
+    branch: string,
+  ): Promise<WorktreeInfo | null> {
+    const worktreeBasePath = this.workspaceSettings.getWorktreeLocation();
+    const twigWorktrees = await listTwigWorktrees(
+      mainRepoPath,
+      worktreeBasePath,
+    );
+    const match = twigWorktrees.find((wt) => wt.branch === branch);
+    if (!match) return null;
+
+    // baseBranch/createdAt are unknown for an already-existing worktree; mirror
+    // WorktreeManager.listWorktrees() and leave them empty rather than fabricate.
+    return {
+      worktreePath: match.worktreePath,
+      worktreeName: path.basename(path.dirname(match.worktreePath)),
+      branchName: branch,
+      baseBranch: "",
+      createdAt: "",
+    };
   }
 
   async createWorkspace(options: CreateWorkspaceInput): Promise<WorkspaceInfo> {
@@ -488,6 +519,7 @@ export class WorkspaceService extends TypedEventEmitter<WorkspaceServiceEvents> 
       branch,
       useExistingBranch,
       allowRemoteBranchCheckout,
+      reuseExistingWorktree,
     } = options;
 
     const existingWorkspace = await this.getWorkspaceInfo(taskId);
@@ -585,7 +617,16 @@ export class WorkspaceService extends TypedEventEmitter<WorkspaceServiceEvents> 
         this.provisioning.emitOutput(taskId, data);
       };
 
-      if (isTrunkSelected) {
+      const existingWorktree = reuseExistingWorktree
+        ? await this.findExistingWorktreeForBranch(mainRepoPath, selectedBranch)
+        : null;
+
+      if (existingWorktree) {
+        this.log.info(
+          `Reusing existing worktree for branch ${selectedBranch}: ${existingWorktree.worktreePath}`,
+        );
+        worktree = existingWorktree;
+      } else if (isTrunkSelected) {
         this.log.info(
           `Trunk branch selected (${defaultBranch}), creating detached worktree`,
         );

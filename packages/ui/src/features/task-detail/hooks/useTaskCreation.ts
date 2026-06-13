@@ -41,6 +41,7 @@ import { useSettingsStore } from "../../settings/settingsStore";
 import { useCreateTask } from "../../tasks/useTaskCrudMutations";
 import { useTourStore } from "../../tour/tourStore";
 import { createFirstTaskTour } from "../../tour/tours/createFirstTaskTour";
+import { useExistingWorktreeConfirmStore } from "../stores/existingWorktreeConfirmStore";
 import { useRemoteBranchConfirmStore } from "../stores/remoteBranchConfirmStore";
 
 const log = logger.scope("task-creation");
@@ -184,18 +185,28 @@ export function useTaskCreation({
         return false;
       }
 
-      // If the chosen worktree branch only exists on the remote, confirm before
-      // fetching and checking it out locally. Done before the pending view so
-      // the dialog (and a cancel) don't leave a half-started task on screen.
+      // Confirm a couple of worktree branch situations before starting the
+      // task. Done before the pending view so a dialog (and a cancel) don't
+      // leave a half-started task on screen. An existing worktree takes
+      // priority: a branch with one already checked out also exists locally.
       let allowRemoteBranchCheckout = false;
+      let reuseExistingWorktree = false;
       if (workspaceMode === "worktree" && branch && selectedDirectory) {
         try {
-          const { status } =
+          const { status, existingWorktreePath } =
             await hostClient.workspace.checkWorktreeBranch.query({
               mainRepoPath: selectedDirectory,
               branch,
             });
-          if (status === "remote-only") {
+          if (existingWorktreePath) {
+            const confirmed = await useExistingWorktreeConfirmStore
+              .getState()
+              .confirm(branch, existingWorktreePath);
+            if (!confirmed) {
+              return false;
+            }
+            reuseExistingWorktree = true;
+          } else if (status === "remote-only") {
             const confirmed = await useRemoteBranchConfirmStore
               .getState()
               .confirm(branch);
@@ -250,6 +261,7 @@ export function useTaskCreation({
           workspaceMode,
           branch,
           allowRemoteBranchCheckout,
+          reuseExistingWorktree,
           executionMode,
           adapter,
           model,

@@ -26,6 +26,9 @@ export const createWorkspaceInput = z
     // When set, a worktree branch that exists only on the remote is fetched and
     // checked out locally instead of failing. Gated behind a user confirmation.
     allowRemoteBranchCheckout: z.boolean().optional(),
+    // When set, an existing worktree already checked out on the branch is reused
+    // for the task instead of creating a new one. Gated behind a confirmation.
+    reuseExistingWorktree: z.boolean().optional(),
   })
   .refine(
     (data) =>
@@ -46,6 +49,9 @@ export const checkWorktreeBranchOutput = z.object({
   // "local": branch exists locally. "remote-only": exists on the remote but not
   // locally. "missing": found neither locally nor on the remote.
   status: z.enum(["trunk", "local", "remote-only", "missing"]),
+  // Path of an existing worktree already checked out on this branch, if any.
+  // Set independently of `status`; the renderer offers to reuse it.
+  existingWorktreePath: z.string().nullable(),
 });
 
 export const reconcileCloudWorkspacesInput = z.object({

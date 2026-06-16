@@ -15,6 +15,7 @@ export interface SignalSourceValues {
   zendesk: boolean;
   conversations: boolean;
   pganalyze: boolean;
+  health_checks: boolean;
 }
 
 export type SignalSourceProduct = keyof SignalSourceValues;
@@ -48,6 +49,7 @@ const SOURCE_TYPE_MAP: Record<
   zendesk: "ticket",
   conversations: "ticket",
   pganalyze: "issue",
+  health_checks: "health_issue",
 };
 
 const ERROR_TRACKING_SOURCE_TYPES: SourceType[] = [
@@ -74,6 +76,7 @@ const ALL_SOURCE_PRODUCTS: SignalSourceProduct[] = [
   "zendesk",
   "conversations",
   "pganalyze",
+  "health_checks",
 ];
 
 function isWarehouseSource(
@@ -109,6 +112,7 @@ export function computeSourceValues(
     zendesk: false,
     conversations: false,
     pganalyze: false,
+    health_checks: false,
   };
   if (!configs?.length) {
     return result;

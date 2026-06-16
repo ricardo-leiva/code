@@ -4,6 +4,7 @@ import {
   BugIcon,
   CompassIcon,
   GithubLogoIcon,
+  HeartbeatIcon,
   KanbanIcon,
   LifebuoyIcon,
   TicketIcon,
@@ -94,5 +95,10 @@ export const SOURCE_PRODUCT_META: Partial<
     Icon: CompassIcon,
     color: "var(--iris-9)",
     label: "Scout",
+  },
+  health_checks: {
+    Icon: HeartbeatIcon,
+    color: "var(--crimson-9)",
+    label: "Health checks",
   },
 };

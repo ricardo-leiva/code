@@ -107,6 +107,7 @@ When adding or changing UI, reuse those primitives first. Avoid encoding one-off
 - Do not put page-level Inbox title or navigation into the global app header; `InboxView` owns the Inbox page chrome.
 - Do not add a configure shortcut back into the Inbox header; Responders configuration is a sidebar destination.
 - Scout (`signals_scout`) is a real Cloud source product. Keep it covered wherever source products surface: `INBOX_SOURCE_OPTIONS`, `SOURCE_PRODUCT_META`, and the scout-name display in `SignalCard`.
+- Health checks (`health_checks` / `health_issue`) is a real Cloud source product — instrumentation issues (missing events, proxy gaps, outdated SDKs) surfaced from PostHog's health checks. Keep it covered wherever source products surface: the `SourceProduct` union, `SignalSourceConfig`, the source toggle (`SignalSourceToggles`, `useSignalSourceToggles`, `signalSourceService`), `SOURCE_PRODUCT_META`, `INBOX_SOURCE_OPTIONS`, and the source line in `SignalCard`.
 - Scout management UI (fleet configuration, run history) lives in `features/scouts/` and is backed by the PostHog Cloud scout endpoints (`/api/projects/{teamId}/signals/scout/`). Do not add scout controls that have no backing endpoint there.
 - Do not put preview shims or mock report data in `apps/code/index.html`; the app shell should stay minimal.
 - Do not call `electronTRPC` directly from Inbox code. Use the existing API client, React Query hooks, or tRPC client wrappers.

@@ -22,7 +22,8 @@ export type SourceProduct =
   | "linear"
   | "zendesk"
   | "conversations"
-  | "signals_scout";
+  | "signals_scout"
+  | "health_checks";
 
 export const DEFAULT_STATUS_FILTER: SignalReportStatus[] = [
   "ready",

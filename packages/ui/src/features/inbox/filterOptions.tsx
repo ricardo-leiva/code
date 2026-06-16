@@ -5,6 +5,7 @@ import {
   Clock,
   CompassIcon,
   GithubLogoIcon,
+  HeartbeatIcon,
   KanbanIcon,
   LifebuoyIcon,
   ListNumbers,
@@ -101,6 +102,11 @@ export const INBOX_SOURCE_OPTIONS: {
   },
   { value: "pganalyze", label: "pganalyze", icon: <PgAnalyzeIcon size={14} /> },
   { value: "signals_scout", label: "Scouts", icon: <CompassIcon size={14} /> },
+  {
+    value: "health_checks",
+    label: "Health checks",
+    icon: <HeartbeatIcon size={14} />,
+  },
 ];
 
 export function inboxSortOptionKey(

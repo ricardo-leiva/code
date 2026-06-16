@@ -14,4 +14,5 @@ export type SourceProduct =
   | "zendesk"
   | "conversations"
   | "pganalyze"
-  | "signals_scout";
+  | "signals_scout"
+  | "health_checks";

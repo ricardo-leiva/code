@@ -201,7 +201,8 @@ export interface SignalSourceConfig {
     | "conversations"
     | "error_tracking"
     | "pganalyze"
-    | "signals_scout";
+    | "signals_scout"
+    | "health_checks";
   source_type:
     | "session_analysis_cluster"
     | "evaluation"
@@ -210,7 +211,8 @@ export interface SignalSourceConfig {
     | "issue_created"
     | "issue_reopened"
     | "issue_spiking"
-    | "cross_source_issue";
+    | "cross_source_issue"
+    | "health_issue";
   enabled: boolean;
   config: Record<string, unknown>;
   created_at: string;

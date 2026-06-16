@@ -6,6 +6,7 @@ import {
   CircleNotchIcon,
   CompassIcon,
   GithubLogoIcon,
+  HeartbeatIcon,
   KanbanIcon,
   TicketIcon,
   VideoIcon,
@@ -26,6 +27,7 @@ export interface SignalSourceValues {
   zendesk: boolean;
   conversations: boolean;
   pganalyze: boolean;
+  health_checks: boolean;
 }
 
 interface SignalSourceToggleCardProps {
@@ -300,6 +302,10 @@ export function SignalSourceToggles({
     (checked: boolean) => onToggle("conversations", checked),
     [onToggle],
   );
+  const toggleHealthChecks = useCallback(
+    (checked: boolean) => onToggle("health_checks", checked),
+    [onToggle],
+  );
   const toggleScouts = useCallback(
     (checked: boolean) => onToggle("signals_scout", checked),
     [onToggle],
@@ -331,6 +337,17 @@ export function SignalSourceToggles({
             syncStatus={sourceStates?.error_tracking?.syncStatus}
             docsUrl="https://posthog.com/docs/error-tracking"
             docsLabel="Error Tracking"
+          />
+          <SignalSourceToggleCard
+            icon={<HeartbeatIcon size={20} />}
+            label="Health checks"
+            description="Instrumentation issues — missing events, proxy gaps, outdated SDKs"
+            checked={value.health_checks}
+            onCheckedChange={toggleHealthChecks}
+            disabled={disabled}
+            syncStatus={sourceStates?.health_checks?.syncStatus}
+            docsUrl="https://posthog.com/docs/product-analytics/troubleshooting"
+            docsLabel="Health checks"
           />
           <SignalSourceToggleCard
             icon={<ChatsIcon size={20} />}

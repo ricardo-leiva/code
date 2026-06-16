@@ -731,7 +731,8 @@ export interface SignalSourceConnectedProperties {
     | "zendesk"
     | "conversations"
     | "pganalyze"
-    | "llm_analytics";
+    | "llm_analytics"
+    | "health_checks";
   /** True when this is a brand-new createSignalSourceConfig, false for re-enable of an existing config. */
   is_first_connection: boolean;
   /** True when the connection went through the DataSourceSetup wizard (warehouse OAuth path). */

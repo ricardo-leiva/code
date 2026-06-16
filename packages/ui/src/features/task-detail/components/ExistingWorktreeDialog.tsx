@@ -1,5 +1,5 @@
-import { FolderOpen } from "@phosphor-icons/react";
-import { AlertDialog, Button, Code, Flex } from "@radix-ui/themes";
+import { FolderOpen, Warning } from "@phosphor-icons/react";
+import { AlertDialog, Button, Code, Flex, Text } from "@radix-ui/themes";
 import { useExistingWorktreeConfirmStore } from "../stores/existingWorktreeConfirmStore";
 
 /**
@@ -40,9 +40,22 @@ export function ExistingWorktreeDialog() {
           . Continue and use that worktree for this task?
         </AlertDialog.Description>
 
+        <Flex align="start" gap="2" mt="3">
+          <Warning
+            size={16}
+            weight="bold"
+            color="var(--amber-9)"
+            className="mt-px shrink-0"
+          />
+          <Text size="1" color="gray">
+            Deleting this task later removes the worktree and any uncommitted
+            work in it, even though it existed beforehand.
+          </Text>
+        </Flex>
+
         <Flex justify="end" gap="2" mt="4">
           <AlertDialog.Cancel>
-            <Button variant="soft" color="gray" size="1" onClick={cancel}>
+            <Button variant="soft" color="gray" size="1">
               Cancel
             </Button>
           </AlertDialog.Cancel>

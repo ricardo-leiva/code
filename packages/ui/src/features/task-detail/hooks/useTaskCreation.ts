@@ -39,6 +39,7 @@ import { useTaskInputHistoryStore } from "../../message-editor/taskInputHistoryS
 import type { EditorHandle } from "../../message-editor/types";
 import { useSettingsStore } from "../../settings/settingsStore";
 import { useCreateTask } from "../../tasks/useTaskCrudMutations";
+import { useTasks } from "../../tasks/useTasks";
 import { useTourStore } from "../../tour/tourStore";
 import { createFirstTaskTour } from "../../tour/tours/createFirstTaskTour";
 import { useExistingWorktreeConfirmStore } from "../stores/existingWorktreeConfirmStore";
@@ -166,6 +167,8 @@ export function useTaskCreation({
   );
   const { invalidateTasks } = useCreateTask();
   const { isOnline } = useConnectivity();
+  // Used to name the task occupying a branch's worktree when reuse is blocked.
+  const { data: tasks } = useTasks();
 
   const hasRequiredPath =
     workspaceMode === "cloud" ? !!selectedRepository : !!selectedDirectory;
@@ -187,17 +190,30 @@ export function useTaskCreation({
 
       // Confirm a couple of worktree branch situations before starting the
       // task. Done before the pending view so a dialog (and a cancel) don't
-      // leave a half-started task on screen. An existing worktree takes
-      // priority: a branch with one already checked out also exists locally.
+      // leave a half-started task on screen. Reusing an existing worktree takes
+      // priority over checking out a remote branch.
       let allowRemoteBranchCheckout = false;
       let reuseExistingWorktree = false;
       if (workspaceMode === "worktree" && branch && selectedDirectory) {
         try {
-          const { status, existingWorktreePath } =
+          const { status, existingWorktreePath, existingWorktreeTaskId } =
             await hostClient.workspace.checkWorktreeBranch.query({
               mainRepoPath: selectedDirectory,
               branch,
             });
+          if (existingWorktreeTaskId) {
+            // The branch's worktree already belongs to another task. Don't
+            // create a duplicate; point the user at the task using it.
+            const occupant = tasks?.find(
+              (t) => t.id === existingWorktreeTaskId,
+            );
+            toast.error("Worktree already in use", {
+              description: occupant
+                ? `${branch} already has a worktree used by "${occupant.title}". Open that task to keep working there.`
+                : `${branch} already has a worktree used by another task.`,
+            });
+            return false;
+          }
           if (existingWorktreePath) {
             const confirmed = await useExistingWorktreeConfirmStore
               .getState()
@@ -365,6 +381,7 @@ export function useTaskCreation({
       onTaskCreated,
       hostClient,
       taskService,
+      tasks,
     ],
   );
 

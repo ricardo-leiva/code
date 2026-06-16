@@ -441,22 +441,41 @@ export class WorkspaceService extends TypedEventEmitter<WorkspaceServiceEvents> 
         ),
       ),
     ]);
-    const existingWorktreePath = existingWorktree?.worktreePath ?? null;
+    // Reuse is only offered for an *unused* worktree. If a task already holds
+    // the worktree on this branch, report that task instead so the renderer can
+    // block the duplicate and point the user at it.
+    let worktree: {
+      existingWorktreePath: string | null;
+      existingWorktreeTaskId: string | null;
+    } = { existingWorktreePath: null, existingWorktreeTaskId: null };
+    if (existingWorktree) {
+      const [occupant] = this.getWorktreeTasks(existingWorktree.worktreePath);
+      worktree = occupant
+        ? {
+            existingWorktreePath: null,
+            existingWorktreeTaskId: occupant.taskId,
+          }
+        : {
+            existingWorktreePath: existingWorktree.worktreePath,
+            existingWorktreeTaskId: null,
+          };
+    }
+
     if (branch === defaultBranch) {
-      return { status: "trunk", existingWorktreePath };
+      return { status: "trunk", ...worktree };
     }
 
     if (await branchExists(mainRepoPath, branch, { abortSignal: signal })) {
-      return { status: "local", existingWorktreePath };
+      return { status: "local", ...worktree };
     }
 
     if (
       await remoteBranchExists(mainRepoPath, branch, { abortSignal: signal })
     ) {
-      return { status: "remote-only", existingWorktreePath };
+      return { status: "remote-only", ...worktree };
     }
 
-    return { status: "missing", existingWorktreePath };
+    return { status: "missing", ...worktree };
   }
 
   /**
@@ -477,11 +496,22 @@ export class WorkspaceService extends TypedEventEmitter<WorkspaceServiceEvents> 
     const match = twigWorktrees.find((wt) => wt.branch === branch);
     if (!match) return null;
 
+    // Recover the worktree name from its path, layout-aware so the stored name
+    // round-trips through deriveWorktreePath. New layout is `<base>/<name>/<repo>`
+    // (name is the parent dir); legacy is `<base>/<repo>/<name>` (name is the
+    // final segment). Distinguish by whether the final segment is the repo.
+    const repoName = path.basename(mainRepoPath);
+    const finalSegment = path.basename(match.worktreePath);
+    const worktreeName =
+      finalSegment === repoName
+        ? path.basename(path.dirname(match.worktreePath))
+        : finalSegment;
+
     // baseBranch/createdAt are unknown for an already-existing worktree; mirror
     // WorktreeManager.listWorktrees() and leave them empty rather than fabricate.
     return {
       worktreePath: match.worktreePath,
-      worktreeName: path.basename(path.dirname(match.worktreePath)),
+      worktreeName,
       branchName: branch,
       baseBranch: "",
       createdAt: "",
@@ -621,7 +651,17 @@ export class WorkspaceService extends TypedEventEmitter<WorkspaceServiceEvents> 
         ? await this.findExistingWorktreeForBranch(mainRepoPath, selectedBranch)
         : null;
 
+      // Reuse only an unused worktree. The renderer already gates on this, but
+      // re-check here so a lost race (the worktree got claimed between preflight
+      // and now) fails the saga step rather than sharing one worktree across two
+      // tasks.
       if (existingWorktree) {
+        const [occupant] = this.getWorktreeTasks(existingWorktree.worktreePath);
+        if (occupant) {
+          throw new Error(
+            `Worktree at ${existingWorktree.worktreePath} is already used by task ${occupant.taskId}`,
+          );
+        }
         this.log.info(
           `Reusing existing worktree for branch ${selectedBranch}: ${existingWorktree.worktreePath}`,
         );

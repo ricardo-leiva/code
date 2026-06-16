@@ -6,6 +6,7 @@ import {
   branchExists,
   getCurrentBranch,
   getDefaultBranch,
+  hasTrackedFiles,
   remoteBranchExists,
 } from "@posthog/git/queries";
 import type { IAnalytics } from "@posthog/platform/analytics";
@@ -17,12 +18,14 @@ import { createMockWorkspaceRepository } from "../../db/repositories/workspace-r
 import { createMockWorktreeRepository } from "../../db/repositories/worktree-repository.mock";
 import type { ProcessTrackingService } from "../process-tracking/process-tracking";
 import type { SuspensionService } from "../suspension/suspension";
+import { listTwigWorktrees } from "../worktree-query/worktree-query";
 import type {
   WorkspaceAgent,
   WorkspaceFileWatcher,
   WorkspaceFocus,
   WorkspaceProvisioning,
 } from "./ports";
+import type { CreateWorkspaceInput } from "./schemas";
 import { WorkspaceService, WorkspaceServiceEvent } from "./workspace";
 
 vi.mock("@posthog/git/queries", async (importOriginal) => {
@@ -33,6 +36,7 @@ vi.mock("@posthog/git/queries", async (importOriginal) => {
     getCurrentBranch: vi.fn(),
     branchExists: vi.fn(),
     remoteBranchExists: vi.fn(),
+    hasTrackedFiles: vi.fn(),
   };
 });
 
@@ -44,6 +48,7 @@ vi.mock("../worktree-query/worktree-query", async (importOriginal) => {
   return {
     ...actual,
     deleteWorktree: vi.fn(async () => {}),
+    listTwigWorktrees: vi.fn(),
   };
 });
 
@@ -277,6 +282,7 @@ describe("WorkspaceService", () => {
       vi.mocked(getCurrentBranch).mockResolvedValue("main");
       vi.mocked(branchExists).mockResolvedValue(false);
       vi.mocked(remoteBranchExists).mockResolvedValue(false);
+      vi.mocked(listTwigWorktrees).mockResolvedValue([]);
     });
 
     it.each([
@@ -297,9 +303,71 @@ describe("WorkspaceService", () => {
 
         expect(
           await service.checkWorktreeBranch({ mainRepoPath, branch }),
-        ).toEqual({ status });
+        ).toEqual({
+          status,
+          existingWorktreePath: null,
+          existingWorktreeTaskId: null,
+        });
       },
     );
+
+    it("offers an unused worktree on the branch for reuse", async () => {
+      vi.mocked(branchExists).mockResolvedValue(true);
+      vi.mocked(listTwigWorktrees).mockResolvedValue([
+        {
+          worktreePath: "/tmp/worktrees/feature-x/repo",
+          head: "abc123",
+          branch: "feature/x",
+        },
+      ]);
+
+      expect(
+        await service.checkWorktreeBranch({
+          mainRepoPath,
+          branch: "feature/x",
+        }),
+      ).toEqual({
+        status: "local",
+        existingWorktreePath: "/tmp/worktrees/feature-x/repo",
+        existingWorktreeTaskId: null,
+      });
+    });
+
+    it("reports the occupying task instead of offering reuse when the worktree is taken", async () => {
+      vi.mocked(branchExists).mockResolvedValue(true);
+      vi.mocked(listTwigWorktrees).mockResolvedValue([
+        {
+          worktreePath: "/tmp/worktrees/feature-x/repo",
+          head: "abc123",
+          branch: "feature/x",
+        },
+      ]);
+      // Associate a task with that worktree path so getWorktreeTasks finds it.
+      // deriveWorktreePath (new layout) reconstructs <base>/<name>/<repo>, so
+      // name "feature-x" + repo "repo" resolves to the path above.
+      const folder = mocks.repositoryRepo.create({ path: mainRepoPath });
+      const occupantWorkspace = mocks.workspaceRepo.create({
+        taskId: "occupant-task",
+        repositoryId: folder.id,
+        mode: "worktree",
+      });
+      mocks.worktreeRepo.create({
+        workspaceId: occupantWorkspace.id,
+        name: "feature-x",
+        path: "/tmp/worktrees/feature-x/repo",
+      });
+
+      expect(
+        await service.checkWorktreeBranch({
+          mainRepoPath,
+          branch: "feature/x",
+        }),
+      ).toEqual({
+        status: "local",
+        existingWorktreePath: null,
+        existingWorktreeTaskId: "occupant-task",
+      });
+    });
 
     it("falls back to the current branch as trunk when getDefaultBranch fails", async () => {
       vi.mocked(getDefaultBranch).mockRejectedValue(new Error("no remote"));
@@ -307,7 +375,90 @@ describe("WorkspaceService", () => {
 
       expect(
         await service.checkWorktreeBranch({ mainRepoPath, branch: "develop" }),
-      ).toEqual({ status: "trunk" });
+      ).toEqual({
+        status: "trunk",
+        existingWorktreePath: null,
+        existingWorktreeTaskId: null,
+      });
+    });
+  });
+
+  describe("createWorkspace (worktree reuse)", () => {
+    const mainRepoPath = "/tmp/repo";
+
+    beforeEach(() => {
+      vi.mocked(getDefaultBranch).mockResolvedValue("main");
+      vi.mocked(getCurrentBranch).mockResolvedValue("main");
+      // The reuse success path checks whether the worktree has files; pretend it
+      // does so the empty-workspace warning branch (and its fs reads) is skipped.
+      vi.mocked(hasTrackedFiles).mockResolvedValue(true);
+    });
+
+    function reuseInput(taskId: string): CreateWorkspaceInput {
+      return {
+        taskId,
+        mainRepoPath,
+        folderId: "folder-1",
+        folderPath: mainRepoPath,
+        mode: "worktree",
+        branch: "feature/x",
+        reuseExistingWorktree: true,
+      };
+    }
+
+    it("reuses an unused worktree and stores its layout-aware name (legacy layout)", async () => {
+      // Legacy layout is <base>/<repo>/<name>, so the name is the final segment
+      // ("feature-x"), not the parent dir. No task owns it, so reuse proceeds and
+      // the recovered name is persisted via worktreeRepo.create.
+      vi.mocked(listTwigWorktrees).mockResolvedValue([
+        {
+          worktreePath: "/tmp/worktrees/repo/feature-x",
+          head: "abc123",
+          branch: "feature/x",
+        },
+      ]);
+      const createWorktree = vi.spyOn(mocks.worktreeRepo, "create");
+
+      const workspace = await service.createWorkspace(reuseInput("new-task"));
+
+      expect(workspace.worktree?.worktreeName).toBe("feature-x");
+      expect(workspace.worktree?.worktreePath).toBe(
+        "/tmp/worktrees/repo/feature-x",
+      );
+      expect(createWorktree).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "feature-x",
+          path: "/tmp/worktrees/repo/feature-x",
+        }),
+      );
+    });
+
+    it("fails the create step when the worktree was claimed between preflight and create", async () => {
+      vi.mocked(listTwigWorktrees).mockResolvedValue([
+        {
+          worktreePath: "/tmp/worktrees/feature-x/repo",
+          head: "abc123",
+          branch: "feature/x",
+        },
+      ]);
+      // Associate another task with that worktree path so the re-check's
+      // getWorktreeTasks finds an occupant (same fixture as the checkWorktreeBranch
+      // occupied case: new layout <base>/<name>/<repo> round-trips to the path).
+      const folder = mocks.repositoryRepo.create({ path: mainRepoPath });
+      const occupantWorkspace = mocks.workspaceRepo.create({
+        taskId: "occupant-task",
+        repositoryId: folder.id,
+        mode: "worktree",
+      });
+      mocks.worktreeRepo.create({
+        workspaceId: occupantWorkspace.id,
+        name: "feature-x",
+        path: "/tmp/worktrees/feature-x/repo",
+      });
+
+      await expect(
+        service.createWorkspace(reuseInput("new-task")),
+      ).rejects.toThrow(/already used by task occupant-task/);
     });
   });
 

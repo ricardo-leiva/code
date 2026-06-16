@@ -49,9 +49,15 @@ export const checkWorktreeBranchOutput = z.object({
   // "local": branch exists locally. "remote-only": exists on the remote but not
   // locally. "missing": found neither locally nor on the remote.
   status: z.enum(["trunk", "local", "remote-only", "missing"]),
-  // Path of an existing worktree already checked out on this branch, if any.
-  // Set independently of `status`; the renderer offers to reuse it.
+  // Path of an *unused* worktree already checked out on this branch, if any.
+  // Set only when no task is associated with it; the renderer offers to reuse
+  // it. Null when there is no managed worktree, or when one exists but is
+  // already taken by a task (see existingWorktreeTaskId).
   existingWorktreePath: z.string().nullable(),
+  // Id of the task already using the managed worktree on this branch, if any.
+  // When set, the renderer blocks reuse and points the user at that task.
+  // Mutually exclusive with existingWorktreePath.
+  existingWorktreeTaskId: z.string().nullable(),
 });
 
 export const reconcileCloudWorkspacesInput = z.object({

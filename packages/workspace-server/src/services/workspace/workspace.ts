@@ -41,6 +41,7 @@ import { SUSPENSION_SERVICE } from "../suspension/identifiers";
 import type { SuspensionService } from "../suspension/suspension";
 import {
   deleteWorktree as deleteGitWorktree,
+  listLinkedWorktrees,
   listTwigWorktrees,
   resolveLocalWorktreePath,
 } from "../worktree-query/worktree-query";
@@ -479,27 +480,25 @@ export class WorkspaceService extends TypedEventEmitter<WorkspaceServiceEvents> 
   }
 
   /**
-   * Finds a PostHog-managed worktree (under the worktree base path) already
-   * checked out on `branch`, returning it as a `WorktreeInfo` ready to reuse, or
-   * null when none exists. Only base-path worktrees are considered because the
-   * task<->worktree association re-derives paths from the base path and name.
+   * Finds a worktree already checked out on `branch` in any location, returning
+   * it as a `WorktreeInfo` ready to reuse, or null when none exists. Worktrees
+   * outside the managed base path qualify too: the stored `path` column is the
+   * source of truth for a task's worktree, so an externally-created worktree
+   * round-trips just like a managed one.
    */
   private async findExistingWorktreeForBranch(
     mainRepoPath: string,
     branch: string,
   ): Promise<WorktreeInfo | null> {
-    const worktreeBasePath = this.workspaceSettings.getWorktreeLocation();
-    const twigWorktrees = await listTwigWorktrees(
-      mainRepoPath,
-      worktreeBasePath,
-    );
-    const match = twigWorktrees.find((wt) => wt.branch === branch);
+    const linkedWorktrees = await listLinkedWorktrees(mainRepoPath);
+    const match = linkedWorktrees.find((wt) => wt.branch === branch);
     if (!match) return null;
 
-    // Recover the worktree name from its path, layout-aware so the stored name
-    // round-trips through deriveWorktreePath. New layout is `<base>/<name>/<repo>`
-    // (name is the parent dir); legacy is `<base>/<repo>/<name>` (name is the
-    // final segment). Distinguish by whether the final segment is the repo.
+    // `worktreeName` is a cosmetic label only; `worktreePath` is authoritative.
+    // Recover the name layout-aware for managed worktrees: new layout is
+    // `<base>/<name>/<repo>` (name is the parent dir), legacy is
+    // `<base>/<repo>/<name>` (name is the final segment). For an external
+    // worktree neither layout holds, so the final segment is a sensible label.
     const repoName = path.basename(mainRepoPath);
     const finalSegment = path.basename(match.worktreePath);
     const worktreeName =

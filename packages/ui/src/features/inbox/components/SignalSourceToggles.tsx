@@ -341,12 +341,12 @@ export function SignalSourceToggles({
           <SignalSourceToggleCard
             icon={<HeartbeatIcon size={20} />}
             label="Health checks"
-            description="Instrumentation issues — missing events, proxy gaps, outdated SDKs"
+            description="Recommended — detects problems with your PostHog integration (missing events, proxy gaps, outdated SDKs) and automatically suggests fixes."
             checked={value.health_checks}
             onCheckedChange={toggleHealthChecks}
             disabled={disabled}
             syncStatus={sourceStates?.health_checks?.syncStatus}
-            docsUrl="https://posthog.com/docs/product-analytics/troubleshooting"
+            docsUrl="https://posthog.com/docs/sdk-health"
             docsLabel="Health checks"
           />
           <SignalSourceToggleCard

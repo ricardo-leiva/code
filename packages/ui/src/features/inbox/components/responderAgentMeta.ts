@@ -35,8 +35,8 @@ export const RESPONDER_AGENT_GROUPS: ResponderAgentGroup[] = [
         sourceProduct: "health_checks",
         label: "Health checks",
         description:
-          "Instrumentation issues – missing events, proxy gaps, outdated SDKs.",
-        docsUrl: "https://posthog.com/docs/product-analytics/troubleshooting",
+          "Recommended — detects problems with your PostHog integration and suggests fixes automatically.",
+        docsUrl: "https://posthog.com/docs/sdk-health",
         docsLabel: "Health checks",
       },
       {

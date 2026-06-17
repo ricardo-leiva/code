@@ -138,6 +138,20 @@ function bashCommandFromToolUse(
 
 const TOOL_ARGS_PREVIEW_LIMIT = 240;
 
+const TOOL_ARGS_PREVIEW_KEYS = [
+  "file_path",
+  "notebook_path",
+  "path",
+  "code", // MCP exec / hogql / sql payloads
+  "query", // search queries
+  "pattern", // grep / glob patterns
+  "url",
+  "description",
+  "prompt", // Task / Agent sub-agent prompt
+  "name", // schema lookups
+  "title",
+];
+
 function toolArgsPreview(
   chunk: ToolUseCache[string],
   bashCommand: string | undefined,
@@ -148,16 +162,27 @@ function toolArgsPreview(
     return typeof v === "string" && v ? v : undefined;
   };
 
-  const raw =
-    bashCommand ??
-    tryField("file_path") ??
-    tryField("notebook_path") ??
-    tryField("path") ??
-    tryField("query") ??
-    tryField("pattern") ??
-    tryField("url") ??
-    tryField("description") ??
-    "";
+  let raw = bashCommand;
+  if (!raw) {
+    for (const key of TOOL_ARGS_PREVIEW_KEYS) {
+      const v = tryField(key);
+      if (v) {
+        raw = v;
+        break;
+      }
+    }
+  }
+  // Fallback: take the first short-string arg of the input. Avoids returning
+  // the empty string when an MCP tool uses an arg name we don't enumerate
+  // above. Bound by ``TOOL_ARGS_PREVIEW_LIMIT`` after the truncation below.
+  if (!raw && input) {
+    for (const value of Object.values(input)) {
+      if (typeof value === "string" && value.trim()) {
+        raw = value;
+        break;
+      }
+    }
+  }
   if (!raw) return "";
   const oneLine = raw.replace(/\s+/g, " ").trim();
   return oneLine.length > TOOL_ARGS_PREVIEW_LIMIT

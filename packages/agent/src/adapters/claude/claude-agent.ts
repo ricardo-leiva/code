@@ -515,6 +515,9 @@ export class ClaudeAcpAgent extends BaseAcpAgent {
         textIds: new Set<string>(),
         thinkingIds: new Set<string>(),
       },
+      // Reset each turn — pre-tool prose accumulated last turn must not carry
+      // over into the next turn's first ``_posthog/status`` ``tool_intent``.
+      intentBuffer: { value: "" },
     };
 
     try {

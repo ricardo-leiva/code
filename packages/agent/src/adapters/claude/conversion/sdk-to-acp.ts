@@ -249,6 +249,21 @@ function handleToolUseChunk(
     cwd: ctx.cwd,
   });
 
+  // Broadcast a live "agent is doing X" status when a tool first starts so
+  // downstream consumers (the Slack orchestrator) can render it as a status
+  // line in the thread without inferring intent from raw tool names.
+  if (!alreadyCached && toolInfo.title) {
+    void ctx.client
+      .extNotification(POSTHOG_NOTIFICATIONS.STATUS, {
+        sessionId: ctx.sessionId,
+        status: "tool_use",
+        text: toolInfo.title,
+      })
+      .catch(() => {
+        // Best-effort — a failed status broadcast must not break tool execution.
+      });
+  }
+
   const meta: Record<string, unknown> = {
     ...toolMeta(
       chunk.name,

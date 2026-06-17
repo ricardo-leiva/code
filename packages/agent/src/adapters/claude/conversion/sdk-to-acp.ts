@@ -62,16 +62,6 @@ interface AnthropicMessageWithContent {
   };
 }
 
-/**
- * Accumulates assistant-text content emitted since the last tool_use so the
- * orchestrator can render the agent's pre-tool prose as the upcoming step's
- * description. The mutable wrapper threads through the chunk handlers; each
- * tool_use emit reads and resets ``value``.
- */
-export interface IntentBuffer {
-  value: string;
-}
-
 type ChunkHandlerContext = {
   sessionId: string;
   toolUseCache: ToolUseCache;
@@ -83,7 +73,6 @@ type ChunkHandlerContext = {
   registerHooks?: boolean;
   supportsTerminalOutput?: boolean;
   cwd?: string;
-  intentBuffer?: IntentBuffer;
   /** Raw MCP tool result from SDKUserMessage.tool_use_result (contains content, structuredContent, _meta) */
   mcpToolUseResult?: Record<string, unknown>;
   /** Per-session task list (populated by createTaskHook + tool_result handler) */
@@ -120,13 +109,6 @@ export interface MessageHandlerContext {
   supportsTerminalOutput?: boolean;
   /** Absent on replay, where the legacy drop-all text/thinking filter applies. */
   streamedAssistantBlocks?: StreamedAssistantBlocks;
-  /**
-   * Mutable buffer accumulating assistant-text deltas since the last tool_use.
-   * Read+reset on every ``_posthog/status`` emit so the orchestrator can use
-   * the agent's pre-tool prose as the upcoming step's description. Optional
-   * (absent on replay); the chunk handler tolerates ``undefined``.
-   */
-  intentBuffer?: IntentBuffer;
 }
 
 function messageUpdateType(role: Role) {
@@ -212,14 +194,7 @@ function handleTextChunk(
   chunk: { text: string },
   role: Role,
   parentToolCallId?: string,
-  intentBuffer?: IntentBuffer,
 ): SessionUpdate {
-  // Only top-level assistant prose feeds the upcoming tool's intent. Skip
-  // sub-agent (parentToolCallId) and user text; neither should drive a
-  // surrounding step's description.
-  if (role === "assistant" && !parentToolCallId && intentBuffer && chunk.text) {
-    intentBuffer.value += chunk.text;
-  }
   const update: SessionUpdate = {
     sessionUpdate: messageUpdateType(role),
     content: text(chunk.text),
@@ -330,18 +305,12 @@ function handleToolUseChunk(
 
   // Broadcast a live "agent is doing X" status when a tool first starts so
   // downstream consumers (the Slack orchestrator) can render it as a status
-  // line in the thread. ``tool_name`` / ``tool_args_preview`` give the bare
-  // tool name and a short arg preview for the plan-block step; ``tool_intent``
-  // carries the assistant prose accumulated since the previous tool — the
-  // orchestrator uses it as the step's description when it's short enough to
-  // fit Slack's task_update.details field, otherwise it stays in the message
-  // body. Always-emit (rather than agent-side threshold) keeps the protocol
-  // simple — the orchestrator owns the rendering decision.
+  // line in the thread without inferring intent from raw tool names. The
+  // `tool_name` + `tool_args_preview` fields let renderers show the bare tool
+  // name on the plan-block step and a short preview of the args (file path,
+  // command, query) on the `details` line — same shape as Slack's
+  // task_update chunk.
   if (!alreadyCached && toolInfo.title) {
-    const toolIntent = ctx.intentBuffer?.value ?? "";
-    if (ctx.intentBuffer) {
-      ctx.intentBuffer.value = "";
-    }
     void ctx.client
       .extNotification(POSTHOG_NOTIFICATIONS.STATUS, {
         sessionId: ctx.sessionId,
@@ -352,7 +321,6 @@ function handleToolUseChunk(
           chunk,
           bashCommandFromToolUse(chunk),
         ),
-        tool_intent: toolIntent,
       })
       .catch(() => {
         // Best-effort — a failed status broadcast must not break tool execution.
@@ -573,12 +541,7 @@ function processContentChunk(
   switch (chunk.type) {
     case "text":
     case "text_delta": {
-      const update = handleTextChunk(
-        chunk,
-        role,
-        ctx.parentToolCallId,
-        ctx.intentBuffer,
-      );
+      const update = handleTextChunk(chunk, role, ctx.parentToolCallId);
       return update ? [update] : [];
     }
 
@@ -656,12 +619,8 @@ function toAcpNotifications(
   mcpToolUseResult?: Record<string, unknown>,
   enrichedReadCache?: EnrichedReadCache,
   taskState?: TaskState,
-  intentBuffer?: IntentBuffer,
 ): SessionNotification[] {
   if (typeof content === "string") {
-    if (role === "assistant" && !parentToolCallId && intentBuffer && content) {
-      intentBuffer.value += content;
-    }
     const update: SessionUpdate = {
       sessionUpdate: messageUpdateType(role),
       content: text(content),
@@ -689,7 +648,6 @@ function toAcpNotifications(
     cwd,
     mcpToolUseResult,
     taskState,
-    intentBuffer,
   };
   const output: SessionNotification[] = [];
 
@@ -716,7 +674,6 @@ function streamEventToAcpNotifications(
   cwd?: string,
   enrichedReadCache?: EnrichedReadCache,
   taskState?: TaskState,
-  intentBuffer?: IntentBuffer,
 ): SessionNotification[] {
   const event = message.event;
   switch (event.type) {
@@ -743,7 +700,6 @@ function streamEventToAcpNotifications(
         undefined,
         enrichedReadCache,
         taskState,
-        intentBuffer,
       );
     }
     case "content_block_delta": {
@@ -770,7 +726,6 @@ function streamEventToAcpNotifications(
         undefined,
         enrichedReadCache,
         taskState,
-        intentBuffer,
       );
     }
     case "content_block_stop":
@@ -1106,7 +1061,6 @@ export async function handleStreamEvent(
     context.session.cwd,
     context.enrichedReadCache,
     context.session.taskState,
-    context.intentBuffer,
   )) {
     await client.sessionUpdate(notification);
     context.session.notificationHistory.push(notification);
@@ -1312,7 +1266,6 @@ export async function handleUserAssistantMessage(
           undefined,
           context.enrichedReadCache,
           session.taskState,
-          context.intentBuffer,
         )) {
           await client.sessionUpdate(notification);
           session.notificationHistory.push(notification);
@@ -1359,7 +1312,6 @@ export async function handleUserAssistantMessage(
     mcpToolUseResult,
     context.enrichedReadCache,
     session.taskState,
-    context.intentBuffer,
   )) {
     await client.sessionUpdate(notification);
     session.notificationHistory.push(notification);

@@ -209,13 +209,14 @@ export class PostHogAPIClient {
     taskId: string,
     runId: string,
     text: string,
+    kind: "reply" | "question" = "reply",
   ): Promise<void> {
     const teamId = this.getTeamId();
     await this.apiRequest<{ status: string }>(
       `/api/projects/${teamId}/tasks/${taskId}/runs/${runId}/relay_message/`,
       {
         method: "POST",
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, kind }),
       },
     );
   }

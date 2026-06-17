@@ -2315,7 +2315,7 @@ ${signedCommitInstructions}
 
     this.questionRelayedToSlack = true;
     this.posthogAPI
-      .relayMessage(payload.task_id, payload.run_id, message)
+      .relayMessage(payload.task_id, payload.run_id, message, "question")
       .catch((err) =>
         this.logger.debug("Failed to relay question to Slack", { err }),
       );

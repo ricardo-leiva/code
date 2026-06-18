@@ -30,7 +30,7 @@ export function changedFileSignature(file: ChangedFile): string {
   return sig;
 }
 
-function patchFileSignature(
+export function patchFileSignature(
   fileDiff: ReturnType<typeof parsePatchFiles>[number]["files"][number],
 ): string {
   const cached = signatureCache.get(fileDiff);

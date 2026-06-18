@@ -15,6 +15,7 @@ import { useReviewDraftsStore } from "../reviewDraftsStore";
 import { REVIEW_HOST, type ReviewHost } from "../reviewHost";
 import { useReviewNavigationStore } from "../reviewNavigationStore";
 import type { ReviewListItem, ReviewShellProps } from "../reviewShellParts";
+import { isFileRead } from "../reviewShellParts";
 import { ReviewViewedContext } from "../reviewViewedContext";
 import { useReviewViewedStore } from "../reviewViewedStore";
 import { PendingReviewBar } from "./PendingReviewBar";
@@ -134,11 +135,28 @@ export function ReviewShell({
   );
   const isExpanded = reviewMode === "expanded";
 
+  // Rebuild the key->signature map from items, but keep the previous reference
+  // when its contents are unchanged. items get a new identity on every collapse
+  // toggle; returning a stable map keeps the review context value stable so
+  // toggling one file doesn't re-render every ViewedCheckbox via context.
+  const prevSignaturesRef = useRef<Map<string, string>>(new Map());
   const currentSignatures = useMemo(() => {
     const map = new Map<string, string>();
     for (const item of items) {
       if (item.sig !== undefined) map.set(item.key, item.sig);
     }
+    const prev = prevSignaturesRef.current;
+    let unchanged = prev.size === map.size;
+    if (unchanged) {
+      for (const [key, sig] of map) {
+        if (prev.get(key) !== sig) {
+          unchanged = false;
+          break;
+        }
+      }
+    }
+    if (unchanged) return prev;
+    prevSignaturesRef.current = map;
     return map;
   }, [items]);
 
@@ -147,7 +165,7 @@ export function ReviewShell({
   const readCount = useMemo(() => {
     let count = 0;
     for (const [key, sig] of currentSignatures) {
-      if (viewedRecord[key] === sig) count++;
+      if (isFileRead(viewedRecord[key], sig)) count++;
     }
     return count;
   }, [currentSignatures, viewedRecord]);

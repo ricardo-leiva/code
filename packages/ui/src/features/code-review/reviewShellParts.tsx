@@ -244,6 +244,15 @@ export function FileHeaderRow({
   );
 }
 
+// A file is read when its stored signature matches the current diff signature;
+// a stored signature that no longer matches means the diff changed since.
+export function isFileRead(
+  storedSig: string | undefined,
+  currentSig: string,
+): boolean {
+  return storedSig === currentSig;
+}
+
 function ViewedCheckbox({ viewedKey }: { viewedKey: string }) {
   const ctx = useReviewViewedContext();
   if (!ctx) return null;
@@ -252,8 +261,8 @@ function ViewedCheckbox({ viewedKey }: { viewedKey: string }) {
   if (current === undefined) return null;
 
   const stored = ctx.viewedRecord[viewedKey];
-  const read = stored === current;
-  const changed = stored !== undefined && stored !== current;
+  const read = isFileRead(stored, current);
+  const changed = stored !== undefined && !read;
 
   return (
     <button

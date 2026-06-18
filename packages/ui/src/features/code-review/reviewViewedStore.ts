@@ -3,10 +3,10 @@ import { persist } from "zustand/middleware";
 
 // Backstop on persisted size: clearTasks handles the common cases (archive,
 // merge), but tasks deleted without archiving would otherwise leak forever.
-// Cap total stored entries (≈100 bytes each, so ~15KB) rather than task count,
+// Cap total stored entries (≈100 bytes each, so ~25KB) rather than task count,
 // since files-per-task varies wildly; evict least-recently-touched tasks past
 // the cap.
-const MAX_FILES = 150;
+const MAX_FILES = 250;
 
 interface ReviewViewedStoreState {
   // taskId -> file key -> signature of the diff when the file was marked read.

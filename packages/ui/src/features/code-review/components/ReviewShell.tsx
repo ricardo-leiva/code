@@ -2,6 +2,7 @@ import { WorkerPoolContextProvider } from "@pierre/diffs/react";
 import { useService } from "@posthog/di/react";
 import type { Task } from "@posthog/shared/domain-types";
 import { useArchivedTaskIds } from "@posthog/ui/features/archive/useArchivedTaskIds";
+import { useTaskPrStatus } from "@posthog/ui/features/sidebar/useTaskPrStatus";
 import { Flex, Spinner, Text } from "@radix-ui/themes";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { VList, type VListHandle } from "virtua";
@@ -149,6 +150,13 @@ export function ReviewShell({
     const prunable = [...archivedTaskIds].filter((id) => id !== taskId);
     if (prunable.length > 0) pruneArchived(prunable);
   }, [archivedTaskIds, pruneArchived, taskId]);
+
+  // Once the PR is merged the diff is settled, so read state is moot — drop it.
+  const { prState } = useTaskPrStatus(task);
+  const clearReadState = useReviewViewedStore((s) => s.clearTask);
+  useEffect(() => {
+    if (prState === "merged") clearReadState(taskId);
+  }, [prState, taskId, clearReadState]);
 
   const viewedContextValue = useMemo(
     () => ({

@@ -40,6 +40,7 @@ export interface ArchiveOrchestrationDeps {
   disableFocus(): Promise<void>;
   disconnectFromTask(taskId: string): Promise<void>;
   archive(taskId: string): Promise<void>;
+  clearReadState(taskId: string): void;
   logError(message: string, error: unknown): void;
   cache: ArchiveCacheWriter;
 }
@@ -101,6 +102,9 @@ export async function archiveTask(
   try {
     await deps.disconnectFromTask(taskId);
     await deps.archive(taskId);
+    // Read state is per-task review convenience; an archived task won't be
+    // re-reviewed, so drop it once the archive is confirmed.
+    deps.clearReadState(taskId);
     // Non-optimistic flows keep the row visible during the request, then remove
     // it the moment the archive succeeds.
     if (!optimistic) {

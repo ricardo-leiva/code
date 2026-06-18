@@ -16,6 +16,7 @@ import {
   type HostTrpcClient,
 } from "@posthog/host-router/client";
 import { useHostTRPC } from "@posthog/host-router/react";
+import { useReviewViewedStore } from "@posthog/ui/features/code-review/reviewViewedStore";
 import { useCommandCenterStore } from "@posthog/ui/features/command-center/commandCenterStore";
 import { useFocusStore } from "@posthog/ui/features/focus/focusStore";
 import { pinnedTasksApi } from "@posthog/ui/features/sidebar/taskMetaApi";
@@ -138,6 +139,8 @@ function makeOrchestrationDeps(
       ),
     archive: (taskId) =>
       hostClient.archive.archive.mutate({ taskId }).then(() => undefined),
+    clearReadState: (taskId) =>
+      useReviewViewedStore.getState().clearTask(taskId),
     logError: (message, error) => log.error(message, error),
     cache: makeCacheWriter(queryClient, keys),
   };

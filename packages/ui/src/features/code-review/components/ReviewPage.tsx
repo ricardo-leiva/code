@@ -134,6 +134,7 @@ export function ReviewPage({ task }: ReviewPageProps) {
     expandAll,
     collapseAll,
     uncollapseFile,
+    collapseFiles,
     viewedRecord,
     toggleViewed,
   } = useReviewState(changedFiles, allPaths, taskId);
@@ -188,6 +189,7 @@ export function ReviewPage({ task }: ReviewPageProps) {
       expandAll={expandAll}
       collapseAll={collapseAll}
       uncollapseFile={uncollapseFile}
+      collapseFiles={collapseFiles}
       viewedRecord={viewedRecord}
       toggleViewed={toggleViewed}
       refetch={refetch}
@@ -222,6 +224,7 @@ function LocalReviewContent({
   expandAll,
   collapseAll,
   uncollapseFile,
+  collapseFiles,
   viewedRecord,
   toggleViewed,
   refetch,
@@ -252,6 +255,7 @@ function LocalReviewContent({
   expandAll: () => void;
   collapseAll: () => void;
   uncollapseFile: (filePath: string) => void;
+  collapseFiles: (keys: string[]) => void;
   viewedRecord: Record<string, string>;
   toggleViewed: (key: string, sig: string | null) => void;
   refetch: () => void;
@@ -358,6 +362,7 @@ function LocalReviewContent({
       onExpandAll={expandAll}
       onCollapseAll={collapseAll}
       onUncollapseFile={uncollapseFile}
+      onCollapseFiles={collapseFiles}
       onRefresh={refetch}
       effectiveSource={effectiveSource}
       branchSourceAvailable={branchSourceAvailable}
@@ -448,6 +453,7 @@ function RemoteReviewPage({
       onExpandAll={reviewState.expandAll}
       onCollapseAll={reviewState.collapseAll}
       onUncollapseFile={reviewState.uncollapseFile}
+      onCollapseFiles={reviewState.collapseFiles}
       effectiveSource={effectiveSource}
       branchSourceAvailable={branchSourceAvailable}
       prSourceAvailable={prSourceAvailable}

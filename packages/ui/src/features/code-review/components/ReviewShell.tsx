@@ -112,6 +112,7 @@ export function ReviewShell({
   viewedRecord,
   onToggleViewed,
   onUncollapseFile,
+  onCollapseFiles,
   allExpanded,
   onExpandAll,
   onCollapseAll,
@@ -169,6 +170,22 @@ export function ReviewShell({
     }
     return count;
   }, [currentSignatures, viewedRecord]);
+
+  // When the panel first opens for a task, collapse files that are already read
+  // (mirrors GitHub). Runs once per task, once signatures have loaded, so it
+  // doesn't fight the user manually re-expanding a read file afterwards. Files
+  // that changed since being read stay expanded so the new diff is visible.
+  const seededTaskRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (seededTaskRef.current === taskId) return;
+    if (currentSignatures.size === 0) return;
+    seededTaskRef.current = taskId;
+    const readKeys: string[] = [];
+    for (const [key, sig] of currentSignatures) {
+      if (isFileRead(viewedRecord[key], sig)) readKeys.push(key);
+    }
+    if (readKeys.length > 0) onCollapseFiles(readKeys);
+  }, [taskId, currentSignatures, viewedRecord, onCollapseFiles]);
 
   const clearTasks = useReviewViewedStore((s) => s.clearTasks);
 

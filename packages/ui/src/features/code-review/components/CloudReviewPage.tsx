@@ -51,6 +51,7 @@ export function CloudReviewPage({ task }: CloudReviewPageProps) {
     expandAll,
     collapseAll,
     uncollapseFile,
+    collapseFiles,
     viewedRecord,
     toggleViewed,
   } = useReviewState(reviewFiles, allPaths, taskId);
@@ -135,6 +136,7 @@ export function CloudReviewPage({ task }: CloudReviewPageProps) {
       onExpandAll={expandAll}
       onCollapseAll={collapseAll}
       onUncollapseFile={uncollapseFile}
+      onCollapseFiles={collapseFiles}
       items={items}
       itemIndexByFilePath={itemIndexByFilePath}
       viewedRecord={viewedRecord}

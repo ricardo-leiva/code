@@ -133,6 +133,20 @@ function useCollapseState(filePaths: string[]) {
     [],
   );
 
+  const collapseFiles = useCallback((keys: Iterable<string>) => {
+    setCollapsedFiles((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const key of keys) {
+        if (!next.has(key)) {
+          next.add(key);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, []);
+
   const expandAll = useCallback(() => setCollapsedFiles(new Set()), []);
 
   const collapseAll = useCallback(
@@ -145,6 +159,7 @@ function useCollapseState(filePaths: string[]) {
     toggleFile,
     uncollapseFile,
     setFileCollapsed,
+    collapseFiles,
     expandAll,
     collapseAll,
   };
@@ -162,6 +177,7 @@ export interface ReviewShellProps {
   viewedRecord: Record<string, string>;
   onToggleViewed: (key: string, sig: string | null) => void;
   onUncollapseFile?: (filePath: string) => void;
+  onCollapseFiles: (keys: string[]) => void;
   allExpanded: boolean;
   onExpandAll: () => void;
   onCollapseAll: () => void;

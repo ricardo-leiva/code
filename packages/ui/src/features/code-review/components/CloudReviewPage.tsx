@@ -50,7 +50,9 @@ export function CloudReviewPage({ task }: CloudReviewPageProps) {
     expandAll,
     collapseAll,
     uncollapseFile,
-  } = useReviewState(reviewFiles, allPaths);
+    viewedFiles,
+    toggleViewed,
+  } = useReviewState(reviewFiles, allPaths, taskId);
 
   const toolCallFallbacks = useMemo(
     () =>
@@ -81,6 +83,7 @@ export function CloudReviewPage({ task }: CloudReviewPageProps) {
             commentThreads={showReviewComments ? commentThreads : undefined}
             fallback={toolCallFallbacks?.get(file.path) ?? null}
             externalUrl={githubFileUrl}
+            viewedKey={file.path}
           />
         ),
       };
@@ -132,6 +135,8 @@ export function CloudReviewPage({ task }: CloudReviewPageProps) {
       onUncollapseFile={uncollapseFile}
       items={items}
       itemIndexByFilePath={itemIndexByFilePath}
+      viewedFiles={viewedFiles}
+      onToggleViewed={toggleViewed}
     />
   );
 }

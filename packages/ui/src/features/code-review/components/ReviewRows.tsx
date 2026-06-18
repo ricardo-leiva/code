@@ -64,9 +64,10 @@ export const PatchRow = memo(function PatchRow({
         collapsed={collapsed}
         onToggle={onToggle}
         onOpenFile={onOpenFile}
+        viewedKey={itemKey}
       />
     ),
-    [collapsed, onToggle, onOpenFile],
+    [collapsed, onToggle, onOpenFile, itemKey],
   );
   return (
     <InteractiveFileDiff
@@ -113,6 +114,7 @@ export const UntrackedRow = memo(function UntrackedRow({
       collapsed={collapsed}
       onToggle={onToggle}
       taskId={taskId}
+      viewedKey={itemKey}
     />
   );
 });
@@ -152,6 +154,7 @@ export const RemoteRow = memo(function RemoteRow({
       onToggle={onToggle}
       commentThreads={commentThreads}
       externalUrl={externalUrl}
+      viewedKey={file.path}
     />
   );
 });
@@ -163,6 +166,7 @@ function UntrackedFileDiff({
   options,
   collapsed,
   onToggle,
+  viewedKey,
 }: {
   file: ChangedFile;
   repoPath: string;
@@ -170,6 +174,7 @@ function UntrackedFileDiff({
   options: DiffOptions;
   collapsed: boolean;
   onToggle: () => void;
+  viewedKey?: string;
 }) {
   const [containerRef, inView] = useInView<HTMLDivElement>({
     rootMargin: REVIEW_PREFETCH_ROOT_MARGIN,
@@ -211,6 +216,7 @@ function UntrackedFileDiff({
         reason="line-limit"
         collapsed={collapsed}
         onToggle={onToggle}
+        viewedKey={viewedKey}
       />
     );
   }
@@ -231,6 +237,7 @@ function UntrackedFileDiff({
               fileDiff={fd}
               collapsed={collapsed}
               onToggle={onToggle}
+              viewedKey={viewedKey}
             />
           )}
         />
@@ -242,6 +249,7 @@ function UntrackedFileDiff({
           deletions={0}
           collapsed={collapsed}
           onToggle={onToggle}
+          viewedKey={viewedKey}
         />
       )}
     </div>

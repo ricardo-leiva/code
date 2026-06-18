@@ -16,6 +16,7 @@ interface PatchedFileDiffProps {
   externalUrl?: string;
   prUrl?: string | null;
   commentThreads?: Map<number, PrCommentThread>;
+  viewedKey?: string;
 }
 
 export function PatchedFileDiff({
@@ -28,6 +29,7 @@ export function PatchedFileDiff({
   externalUrl,
   prUrl,
   commentThreads,
+  viewedKey,
 }: PatchedFileDiffProps) {
   const fileDiff = useMemo((): FileDiffMetadata | undefined => {
     if (!file.patch) return undefined;
@@ -56,6 +58,7 @@ export function PatchedFileDiff({
         collapsed={collapsed}
         onToggle={onToggle}
         externalUrl={externalUrl}
+        viewedKey={viewedKey}
       />
     );
   }
@@ -72,6 +75,7 @@ export function PatchedFileDiff({
           fileDiff={fd}
           collapsed={collapsed}
           onToggle={onToggle}
+          viewedKey={viewedKey}
         />
       )}
     />

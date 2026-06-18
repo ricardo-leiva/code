@@ -2,7 +2,7 @@ import { WorkerPoolContextProvider } from "@pierre/diffs/react";
 import { useService } from "@posthog/di/react";
 import type { Task } from "@posthog/shared/domain-types";
 import { Flex, Spinner, Text } from "@radix-ui/themes";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { VList, type VListHandle } from "virtua";
 import {
   REVIEW_LIST_BUFFER_PX,
@@ -12,6 +12,7 @@ import { useReviewDraftsStore } from "../reviewDraftsStore";
 import { REVIEW_HOST, type ReviewHost } from "../reviewHost";
 import { useReviewNavigationStore } from "../reviewNavigationStore";
 import type { ReviewListItem, ReviewShellProps } from "../reviewShellParts";
+import { ReviewViewedContext } from "../reviewViewedContext";
 import { PendingReviewBar } from "./PendingReviewBar";
 import { ReviewToolbar } from "./ReviewToolbar";
 
@@ -103,6 +104,8 @@ export function ReviewShell({
   isEmpty,
   items,
   itemIndexByFilePath,
+  viewedFiles,
+  onToggleViewed,
   onUncollapseFile,
   allExpanded,
   onExpandAll,
@@ -126,6 +129,11 @@ export function ReviewShell({
     (s) => s.reviewModes[taskId] ?? "closed",
   );
   const isExpanded = reviewMode === "expanded";
+
+  const viewedContextValue = useMemo(
+    () => ({ viewedFiles, toggleViewed: onToggleViewed }),
+    [viewedFiles, onToggleViewed],
+  );
 
   const scrollRequest = useReviewNavigationStore(
     (s) => s.scrollRequests[taskId] ?? null,
@@ -217,53 +225,63 @@ export function ReviewShell({
         ],
       }}
     >
-      <Flex direction="column" height="100%" id="review-shell">
-        <ReviewToolbar
-          taskId={taskId}
-          fileCount={fileCount}
-          linesAdded={linesAdded}
-          linesRemoved={linesRemoved}
-          allExpanded={allExpanded}
-          onExpandAll={onExpandAll}
-          onCollapseAll={onCollapseAll}
-          onRefresh={onRefresh}
-          effectiveSource={effectiveSource}
-          branchSourceAvailable={branchSourceAvailable}
-          prSourceAvailable={prSourceAvailable}
-          defaultBranch={defaultBranch}
-        />
-        <Flex className="min-h-0 flex-1">
-          <Flex direction="column" className="min-w-0 flex-1">
-            {isLoading ? (
-              <Flex align="center" justify="center" className="min-h-0 flex-1">
-                <Spinner size="2" />
-              </Flex>
-            ) : isEmpty ? (
-              <Flex align="center" justify="center" className="min-h-0 flex-1">
-                <Text color="gray" className="text-sm">
-                  No file changes to review
-                </Text>
-              </Flex>
-            ) : (
-              <VList
-                ref={listRef}
-                bufferSize={REVIEW_LIST_BUFFER_PX}
-                itemSize={REVIEW_LIST_ESTIMATED_ITEM_SIZE}
-                className="pierre-scroll-root scrollbar-overlay-y min-h-0 flex-1 overflow-auto bg-(--gray-2)"
-                shift={false}
-                style={{ scrollbarGutter: "stable" }}
-                onScroll={handleScroll}
-                data={items}
-              >
-                {renderItem}
-              </VList>
-            )}
-            <PendingReviewBar taskId={taskId} />
-          </Flex>
+      <ReviewViewedContext.Provider value={viewedContextValue}>
+        <Flex direction="column" height="100%" id="review-shell">
+          <ReviewToolbar
+            taskId={taskId}
+            fileCount={fileCount}
+            linesAdded={linesAdded}
+            linesRemoved={linesRemoved}
+            allExpanded={allExpanded}
+            onExpandAll={onExpandAll}
+            onCollapseAll={onCollapseAll}
+            onRefresh={onRefresh}
+            effectiveSource={effectiveSource}
+            branchSourceAvailable={branchSourceAvailable}
+            prSourceAvailable={prSourceAvailable}
+            defaultBranch={defaultBranch}
+          />
+          <Flex className="min-h-0 flex-1">
+            <Flex direction="column" className="min-w-0 flex-1">
+              {isLoading ? (
+                <Flex
+                  align="center"
+                  justify="center"
+                  className="min-h-0 flex-1"
+                >
+                  <Spinner size="2" />
+                </Flex>
+              ) : isEmpty ? (
+                <Flex
+                  align="center"
+                  justify="center"
+                  className="min-h-0 flex-1"
+                >
+                  <Text color="gray" className="text-sm">
+                    No file changes to review
+                  </Text>
+                </Flex>
+              ) : (
+                <VList
+                  ref={listRef}
+                  bufferSize={REVIEW_LIST_BUFFER_PX}
+                  itemSize={REVIEW_LIST_ESTIMATED_ITEM_SIZE}
+                  className="pierre-scroll-root scrollbar-overlay-y min-h-0 flex-1 overflow-auto bg-(--gray-2)"
+                  shift={false}
+                  style={{ scrollbarGutter: "stable" }}
+                  onScroll={handleScroll}
+                  data={items}
+                >
+                  {renderItem}
+                </VList>
+              )}
+              <PendingReviewBar taskId={taskId} />
+            </Flex>
 
-          {isExpanded && <ExpandedSidebar task={task} />}
+            {isExpanded && <ExpandedSidebar task={task} />}
+          </Flex>
         </Flex>
-      </Flex>
+      </ReviewViewedContext.Provider>
     </WorkerPoolContextProvider>
   );
 }

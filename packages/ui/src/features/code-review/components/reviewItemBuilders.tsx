@@ -35,7 +35,14 @@ function patchFileSignature(
 ): string {
   const cached = signatureCache.get(fileDiff);
   if (cached !== undefined) return cached;
-  const sig = contentHash(JSON.stringify(fileDiff.hunks ?? []));
+  // Prefer the git blob object ids from the patch `index` line: they identify
+  // file content directly and are unaffected by the hide-whitespace toggle
+  // (which re-fetches a different diff that would otherwise change a
+  // hunk-derived signature). Fall back to hunk geometry when absent.
+  const sig =
+    fileDiff.newObjectId || fileDiff.prevObjectId
+      ? `${fileDiff.prevObjectId ?? ""}:${fileDiff.newObjectId ?? ""}`
+      : contentHash(JSON.stringify(fileDiff.hunks ?? []));
   signatureCache.set(fileDiff, sig);
   return sig;
 }

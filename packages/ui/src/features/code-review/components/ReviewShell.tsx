@@ -2,6 +2,7 @@ import { WorkerPoolContextProvider } from "@pierre/diffs/react";
 import { useService } from "@posthog/di/react";
 import type { Task } from "@posthog/shared/domain-types";
 import { useArchivedTaskIds } from "@posthog/ui/features/archive/useArchivedTaskIds";
+import { useCloudPrUrl } from "@posthog/ui/features/git-interaction/useCloudPrUrl";
 import { useTaskPrStatus } from "@posthog/ui/features/sidebar/useTaskPrStatus";
 import { Flex, Spinner, Text } from "@radix-ui/themes";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -162,7 +163,14 @@ export function ReviewShell({
   }, [archivedTaskIds, pruneArchived, taskId]);
 
   // Once the PR is merged the diff is settled, so read state is moot — drop it.
-  const { prState } = useTaskPrStatus(task);
+  // Cloud tasks resolve their PR via cloudPrUrl, so pass it (and the run
+  // environment) through or merge detection never fires for them.
+  const cloudPrUrl = useCloudPrUrl(taskId);
+  const { prState } = useTaskPrStatus({
+    id: taskId,
+    cloudPrUrl,
+    taskRunEnvironment: task.latest_run?.environment,
+  });
   const clearReadState = useReviewViewedStore((s) => s.clearTask);
   useEffect(() => {
     if (prState === "merged") clearReadState(taskId);

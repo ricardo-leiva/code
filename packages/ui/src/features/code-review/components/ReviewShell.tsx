@@ -141,6 +141,16 @@ export function ReviewShell({
     return map;
   }, [items]);
 
+  // Count files marked read at their current signature (changed files don't
+  // count as read).
+  const readCount = useMemo(() => {
+    let count = 0;
+    for (const [key, sig] of currentSignatures) {
+      if (viewedRecord[key] === sig) count++;
+    }
+    return count;
+  }, [currentSignatures, viewedRecord]);
+
   // Drop persisted read state for archived tasks so it does not accumulate.
   // Skip the task being reviewed: archiving it while its review is open must
   // not wipe the read marks the user is actively working against.
@@ -262,6 +272,7 @@ export function ReviewShell({
           <ReviewToolbar
             taskId={taskId}
             fileCount={fileCount}
+            readCount={readCount}
             linesAdded={linesAdded}
             linesRemoved={linesRemoved}
             allExpanded={allExpanded}

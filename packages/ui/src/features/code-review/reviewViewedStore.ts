@@ -1,11 +1,12 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-// Backstop on persisted size: pruneArchived handles the common case, but tasks
-// that are deleted without archiving would otherwise leak forever. Cap total
-// stored entries (≈100 bytes each, so ~400KB) rather than task count, since
-// files-per-task varies wildly; evict least-recently-touched tasks past the cap.
-const MAX_FILES = 4000;
+// Backstop on persisted size: clearTask/pruneArchived handle the common cases,
+// but tasks that are deleted without archiving would otherwise leak forever.
+// Cap total stored entries (≈100 bytes each, so ~50KB) rather than task count,
+// since files-per-task varies wildly; evict least-recently-touched tasks past
+// the cap.
+const MAX_FILES = 500;
 
 interface ReviewViewedStoreState {
   // taskId -> file key -> signature of the diff when the file was marked read.

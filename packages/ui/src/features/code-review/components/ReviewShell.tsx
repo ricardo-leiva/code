@@ -152,15 +152,16 @@ export function ReviewShell({
     return count;
   }, [currentSignatures, viewedRecord]);
 
+  const clearTasks = useReviewViewedStore((s) => s.clearTasks);
+
   // Drop persisted read state for archived tasks so it does not accumulate.
   // Skip the task being reviewed: archiving it while its review is open must
   // not wipe the read marks the user is actively working against.
   const archivedTaskIds = useArchivedTaskIds();
-  const pruneArchived = useReviewViewedStore((s) => s.pruneArchived);
   useEffect(() => {
     const prunable = [...archivedTaskIds].filter((id) => id !== taskId);
-    if (prunable.length > 0) pruneArchived(prunable);
-  }, [archivedTaskIds, pruneArchived, taskId]);
+    if (prunable.length > 0) clearTasks(prunable);
+  }, [archivedTaskIds, clearTasks, taskId]);
 
   // Once the PR is merged the diff is settled, so read state is moot — drop it.
   // Cloud tasks resolve their PR via cloudPrUrl, so pass it (and the run
@@ -171,10 +172,9 @@ export function ReviewShell({
     cloudPrUrl,
     taskRunEnvironment: task.latest_run?.environment,
   });
-  const clearReadState = useReviewViewedStore((s) => s.clearTask);
   useEffect(() => {
-    if (prState === "merged") clearReadState(taskId);
-  }, [prState, taskId, clearReadState]);
+    if (prState === "merged") clearTasks([taskId]);
+  }, [prState, taskId, clearTasks]);
 
   const viewedContextValue = useMemo(
     () => ({

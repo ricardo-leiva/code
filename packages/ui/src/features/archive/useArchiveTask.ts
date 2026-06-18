@@ -140,7 +140,7 @@ function makeOrchestrationDeps(
     archive: (taskId) =>
       hostClient.archive.archive.mutate({ taskId }).then(() => undefined),
     clearReadState: (taskId) =>
-      useReviewViewedStore.getState().clearTask(taskId),
+      useReviewViewedStore.getState().clearTasks([taskId]),
     logError: (message, error) => log.error(message, error),
     cache: makeCacheWriter(queryClient, keys),
   };

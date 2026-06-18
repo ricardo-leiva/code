@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-// Backstop on persisted size: clearTask/pruneArchived handle the common cases,
-// but tasks that are deleted without archiving would otherwise leak forever.
+// Backstop on persisted size: clearTasks handles the common cases (archive,
+// merge), but tasks deleted without archiving would otherwise leak forever.
 // Cap total stored entries (≈100 bytes each, so ~15KB) rather than task count,
 // since files-per-task varies wildly; evict least-recently-touched tasks past
 // the cap.
@@ -17,8 +17,8 @@ interface ReviewViewedStoreState {
 interface ReviewViewedStoreActions {
   // Pass a signature to mark read (at that signature), or null to un-mark.
   setViewed: (taskId: string, key: string, sig: string | null) => void;
-  clearTask: (taskId: string) => void;
-  pruneArchived: (archivedTaskIds: Iterable<string>) => void;
+  // Drop read state for the given tasks (archived, merged, or otherwise done).
+  clearTasks: (taskIds: Iterable<string>) => void;
 }
 
 type ReviewViewedStore = ReviewViewedStoreState & ReviewViewedStoreActions;
@@ -52,17 +52,11 @@ export const useReviewViewedStore = create<ReviewViewedStore>()(
           }
           return { viewed: next };
         }),
-      clearTask: (taskId) =>
-        set((state) => {
-          if (!(taskId in state.viewed)) return state;
-          const { [taskId]: _omit, ...rest } = state.viewed;
-          return { viewed: rest };
-        }),
-      pruneArchived: (archivedTaskIds) =>
+      clearTasks: (taskIds) =>
         set((state) => {
           let changed = false;
           const next = { ...state.viewed };
-          for (const id of archivedTaskIds) {
+          for (const id of taskIds) {
             if (id in next) {
               delete next[id];
               changed = true;

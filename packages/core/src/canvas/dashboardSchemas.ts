@@ -57,6 +57,10 @@ export const dashboardFileMetaSchema = z.object({
   // the FileSystem row has no updated_at column to sort the dashboards list by.
   createdAt: z.number().optional(),
   updatedAt: z.number().optional(),
+  // Channel folders only: the file-system id of the channel's home canvas (the
+  // auto-created freeform board shown when the channel name is clicked). Stored
+  // on the folder's meta because the FileSystem model has no column for it.
+  homeCanvasId: z.string().optional(),
 });
 export type DashboardFileMeta = z.infer<typeof dashboardFileMetaSchema>;
 
@@ -101,6 +105,10 @@ export const saveFreeformInput = z.object({
 });
 
 export const dashboardIdInput = z.object({ id: z.string().min(1) });
+
+export const ensureHomeCanvasInput = z.object({
+  channelId: z.string().min(1),
+});
 
 // The active time window a dashboard's time-based queries run against. `from`
 // and `to` are epoch ms; `name` is the picker label (e.g. "Last 7 days"). Stored

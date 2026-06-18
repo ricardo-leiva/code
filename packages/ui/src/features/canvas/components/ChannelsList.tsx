@@ -56,7 +56,10 @@ import {
   useChannelTaskMutations,
   useChannelTasks,
 } from "@posthog/ui/features/canvas/hooks/useChannelTasks";
-import { useDashboards } from "@posthog/ui/features/canvas/hooks/useDashboards";
+import {
+  useDashboards,
+  useOpenHomeCanvas,
+} from "@posthog/ui/features/canvas/hooks/useDashboards";
 import { TaskIcon } from "@posthog/ui/features/sidebar/components/items/TaskIcon";
 import { useTaskPrStatus } from "@posthog/ui/features/sidebar/useTaskPrStatus";
 import { useTasks } from "@posthog/ui/features/tasks/useTasks";
@@ -436,6 +439,7 @@ function ChannelSection({
   channels: Channel[];
 }) {
   const navigate = useNavigate();
+  const openHomeCanvas = useOpenHomeCanvas();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { data: tasks } = useTasks();
   const archivedTaskIds = useArchivedTaskIds();
@@ -465,35 +469,45 @@ function ChannelSection({
 
   return (
     <Box className="group/chan relative">
-      {/* The channel header row is one button group: the "# name" toggle grows
-          to fill the row, with the hover actions (new task + options menu)
-          joined onto its right edge. */}
-      {/* Trigger is a quill Button; open/close is plain state (no Collapsible),
-            so the leading icon lines up with the "New" button above. */}
-      <Button
-        variant="default"
-        size="default"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className="w-full min-w-0 flex-1 justify-start gap-2 aria-expanded:bg-transparent"
-      >
+      {/* The channel header row splits into two buttons so each click target is
+          a real, keyboard-accessible control: the leading icon toggles the
+          tree (expand/collapse), and the name opens the channel's home canvas.
+          The hover actions (new task + options menu) join onto the right edge. */}
+      <div className="flex w-full min-w-0 items-center">
         {/* `#` by default; swaps to the expand/collapse caret on hover. Sized to
               match the "New" button's plus so the columns align. */}
-        <span className="relative inline-flex size-[14px] shrink-0 items-center justify-center text-gray-10">
-          <HashIcon size={14} className="group-hover/chan:invisible" />
-          <span className="absolute inset-0 hidden items-center justify-center group-hover/chan:flex">
-            {open ? <CaretDownIcon size={12} /> : <CaretRightIcon size={12} />}
-          </span>
-        </span>
-        <span
-          className={cn(
-            "truncate font-medium text-[13px] text-gray-12 group-hover/chan:pr-8",
-            menuOpen && "pr-8",
-          )}
+        <Button
+          variant="default"
+          size="default"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-label={open ? "Collapse channel" : "Expand channel"}
+          className="shrink-0 px-2 aria-expanded:bg-transparent"
         >
-          {channel.name}
-        </span>
-      </Button>
+          <span className="relative inline-flex size-[14px] items-center justify-center text-gray-10">
+            <HashIcon size={14} className="group-hover/chan:invisible" />
+            <span className="absolute inset-0 hidden items-center justify-center group-hover/chan:flex">
+              {open ? <CaretDownIcon size={12} /> : <CaretRightIcon size={12} />}
+            </span>
+          </span>
+        </Button>
+        {/* Clicking the name opens the channel's home canvas in the main pane. */}
+        <Button
+          variant="default"
+          size="default"
+          onClick={() => void openHomeCanvas(channel)}
+          className="-ml-1 min-w-0 flex-1 justify-start"
+        >
+          <span
+            className={cn(
+              "truncate font-medium text-[13px] text-gray-12 group-hover/chan:pr-8",
+              menuOpen && "pr-8",
+            )}
+          >
+            {channel.name}
+          </span>
+        </Button>
+      </div>
       {/* Hover actions: new task + the options menu. Stay visible while the
             menu is open. */}
       <div className="absolute top-1 right-1">

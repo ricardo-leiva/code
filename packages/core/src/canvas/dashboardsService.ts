@@ -22,6 +22,9 @@ import type { DashboardQuery, DashboardQueryShape } from "./querySchemas";
 // rows (depth 1); dashboards are these `dashboard` files nested beneath them.
 const DASHBOARD_TYPE = "dashboard";
 
+// Display name (canvas h1) of a channel's auto-created home canvas.
+const HOME_CANVAS_NAME = "Home";
+
 // Dashboard-specific shape on top of the shared FS row. Our payload rides in
 // `meta` — see DashboardFileMeta for what that blob holds.
 interface FsEntry extends FsEntryBase {
@@ -220,6 +223,68 @@ export class DashboardsService {
     return toRecord((await res.json()) as FsEntry);
   }
 
+  // Ensure the channel has a home canvas: the freeform board shown when the
+  // channel name is clicked. Idempotent — if the channel folder's meta already
+  // points at a live canvas, return it; otherwise create one, seed its source,
+  // and record its id on the folder. Safe to call on channel create and lazily
+  // on first open (backfills channels made before home canvases existed).
+  async ensureHomeCanvas(channelId: string): Promise<DashboardRecord> {
+    const folder = await this.getEntry(channelId);
+    if (!folder) throw new Error("Channel not found");
+
+    const existingId = folder.meta?.homeCanvasId;
+    if (existingId) {
+      const existing = await this.get(existingId);
+      if (existing) return existing;
+    }
+
+    // Create the freeform canvas under the channel, then seed its source. The
+    // canvas's own id is baked into the code so it can exclude itself from the
+    // "Canvases" list; the channel id lets it resolve the (rename-safe) folder
+    // path at runtime.
+    const record = await this.create({
+      channelId,
+      name: HOME_CANVAS_NAME,
+      spec: null,
+      templateId: FREEFORM_TEMPLATE_ID,
+    });
+    const code = buildHomeCanvasCode(channelId, record.id);
+    const version: FreeformVersion = {
+      id: `home-${record.id}`,
+      code,
+      createdAt: Date.now(),
+    };
+    const saved = await this.saveFreeform({
+      id: record.id,
+      code,
+      versions: [version],
+      currentVersionId: version.id,
+    });
+
+    await this.setHomeCanvasId(channelId, record.id, folder);
+    return saved;
+  }
+
+  // Point a channel folder at its home canvas by writing homeCanvasId onto the
+  // folder's meta (preserving any existing meta keys).
+  private async setHomeCanvasId(
+    channelId: string,
+    homeCanvasId: string,
+    folder?: FsEntry | null,
+  ): Promise<void> {
+    const entry = folder ?? (await this.getEntry(channelId));
+    const prevMeta = entry?.meta ?? {};
+    const meta: DashboardFileMeta = { ...prevMeta, homeCanvasId };
+    const res = await this.fs.fetch(`${encodeURIComponent(channelId)}/`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meta }),
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to set channel home canvas (${res.status})`);
+    }
+  }
+
   async delete(id: string): Promise<void> {
     const res = await this.fs.fetch(`${encodeURIComponent(id)}/`, {
       method: "DELETE",
@@ -314,6 +379,287 @@ export class DashboardsService {
     if (!entry) throw new Error("Channel not found");
     return entry.path;
   }
+}
+
+// The seeded React source for a channel's home canvas. It runs in the freeform
+// sandbox (null-origin iframe), so its only data avenue is `window.ph.query`
+// (HogQL). It reads three lists from the `system.filesystem` HogQL table:
+//   - Canvases: this channel's `dashboard` rows (excluding the home canvas).
+//   - Inbox / to-dos: stubbed (no data source yet) with an assignee filter.
+//   - Tasks: this channel's filed `task` rows, newest first.
+// Each list shows a page at a time and loads more as its own box is scrolled.
+// The "New" buttons are intentionally no-ops until the host wires them up.
+// channelId is baked in (the path is resolved at runtime so renames are safe);
+// homeCanvasId lets the Canvases list exclude this board.
+function buildHomeCanvasCode(channelId: string, homeCanvasId: string): string {
+  const cid = JSON.stringify(channelId);
+  const hid = JSON.stringify(homeCanvasId);
+  return `import { useCallback, useEffect, useRef, useState } from "react";
+
+const CHANNEL_ID = ${cid};
+const HOME_CANVAS_ID = ${hid};
+const PAGE_SIZE = 10;
+
+const ph = (window as any).ph;
+
+// Single-quote a value for inlining into a HogQL string literal.
+function sql(v: string): string {
+  return "'" + String(v).replace(/'/g, "''") + "'";
+}
+
+function lastSegment(path: string): string {
+  const i = path.lastIndexOf("/");
+  return i === -1 ? path : path.slice(i + 1);
+}
+
+// Resolve the channel folder's current path from its stable id, so renaming the
+// channel doesn't break the lists (the path, not the id, scopes child rows).
+async function resolveChannelPath(): Promise<string> {
+  const res = await ph.query(
+    "SELECT path FROM system.filesystem WHERE id = " + sql(CHANNEL_ID) + " LIMIT 1",
+  );
+  const rows = (res && res.results) || [];
+  return rows.length ? String(rows[0][0]) : "";
+}
+
+type Row = { id: string; title: string; ref: string | null; createdAt: string };
+
+// Paginated reader for the channel's filesystem rows of a given type, newest
+// first. Resolves the channel path once, then walks pages by offset.
+function useChannelRows(kind: "dashboard" | "task") {
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const offsetRef = useRef(0);
+  const pathRef = useRef<string | null>(null);
+  const busyRef = useRef(false);
+
+  const loadMore = useCallback(async () => {
+    if (busyRef.current || done) return;
+    busyRef.current = true;
+    setLoading(true);
+    try {
+      if (pathRef.current === null) pathRef.current = await resolveChannelPath();
+      const prefix = pathRef.current + "/";
+      const exclude =
+        kind === "dashboard" ? " AND id != " + sql(HOME_CANVAS_ID) : "";
+      const query =
+        "SELECT id, path, ref, created_at FROM system.filesystem" +
+        " WHERE type = " + sql(kind) +
+        " AND surface = 'desktop'" +
+        " AND startsWith(path, " + sql(prefix) + ")" +
+        exclude +
+        " ORDER BY created_at DESC LIMIT " + PAGE_SIZE +
+        " OFFSET " + offsetRef.current;
+      const res = await ph.query(query);
+      const batch: Row[] = ((res && res.results) || []).map((r: any[]) => ({
+        id: String(r[0]),
+        title: lastSegment(String(r[1])),
+        ref: r[2] == null ? null : String(r[2]),
+        createdAt: String(r[3]),
+      }));
+      offsetRef.current += batch.length;
+      setRows((prev) => prev.concat(batch));
+      if (batch.length < PAGE_SIZE) setDone(true);
+    } catch (err) {
+      // Stop paging on error (e.g. the system table isn't available yet) rather
+      // than spinning; the section just shows what it has.
+      setDone(true);
+    } finally {
+      busyRef.current = false;
+      setLoading(false);
+    }
+  }, [kind, done]);
+
+  useEffect(() => {
+    void loadMore();
+    // Load the first page once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return { rows, loadMore, loading, done };
+}
+
+// A fixed-height, scrollable section. A sentinel at the bottom (observed against
+// THIS box, not the page) fires onLoadMore as the user scrolls near the end.
+function Section(props: {
+  title: string;
+  onNew: () => void;
+  loading: boolean;
+  done: boolean;
+  onLoadMore: () => void;
+  children: any;
+}) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const root = scrollRef.current;
+    const target = sentinelRef.current;
+    if (!root || !target) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) props.onLoadMore();
+      },
+      { root, rootMargin: "120px" },
+    );
+    io.observe(target);
+    return () => io.disconnect();
+  }, [props.onLoadMore]);
+
+  return (
+    <section
+      style={{
+        border: "1px solid #e5e7eb",
+        borderRadius: 10,
+        background: "#fff",
+        display: "flex",
+        flexDirection: "column",
+        minWidth: 0,
+      }}
+    >
+      <header
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "10px 12px",
+          borderBottom: "1px solid #f0f0f0",
+        }}
+      >
+        <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>{props.title}</h2>
+        <button
+          type="button"
+          onClick={props.onNew}
+          style={{
+            fontSize: 12,
+            padding: "3px 8px",
+            borderRadius: 6,
+            border: "1px solid #d4d4d8",
+            background: "#fafafa",
+            cursor: "pointer",
+          }}
+        >
+          + New
+        </button>
+      </header>
+      <div ref={scrollRef} style={{ maxHeight: 280, overflowY: "auto", padding: 8 }}>
+        {props.children}
+        {!props.done ? (
+          <div ref={sentinelRef} style={{ height: 1 }} />
+        ) : null}
+        {props.loading ? (
+          <div style={{ padding: 8, fontSize: 12, color: "#71717a" }}>Loading…</div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function ListRow(props: { title: string; meta?: string }) {
+  return (
+    <div
+      style={{
+        padding: "7px 8px",
+        borderRadius: 6,
+        fontSize: 13,
+        display: "flex",
+        justifyContent: "space-between",
+        gap: 8,
+      }}
+    >
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {props.title}
+      </span>
+      {props.meta ? (
+        <span style={{ color: "#a1a1aa", fontSize: 11, flexShrink: 0 }}>{props.meta}</span>
+      ) : null}
+    </div>
+  );
+}
+
+function Empty(props: { label: string }) {
+  return (
+    <div style={{ padding: 8, fontSize: 12, color: "#a1a1aa" }}>{props.label}</div>
+  );
+}
+
+function CanvasesSection() {
+  const { rows, loadMore, loading, done } = useChannelRows("dashboard");
+  return (
+    <Section
+      title="Canvases"
+      onNew={() => {}}
+      loading={loading}
+      done={done}
+      onLoadMore={loadMore}
+    >
+      {rows.length === 0 && done ? <Empty label="No canvases yet." /> : null}
+      {rows.map((r) => (
+        <ListRow key={r.id} title={r.title} />
+      ))}
+    </Section>
+  );
+}
+
+function TasksSection() {
+  const { rows, loadMore, loading, done } = useChannelRows("task");
+  return (
+    <Section
+      title="Tasks"
+      onNew={() => {}}
+      loading={loading}
+      done={done}
+      onLoadMore={loadMore}
+    >
+      {rows.length === 0 && done ? <Empty label="No tasks yet." /> : null}
+      {rows.map((r) => (
+        <ListRow key={r.id} title={r.title} meta={r.createdAt.slice(0, 10)} />
+      ))}
+    </Section>
+  );
+}
+
+// Inbox / to-dos: there's no data source for these yet, so this is a stub. The
+// assignee toggle and "New" button are placeholders the host will wire up later.
+function InboxSection() {
+  const [scope, setScope] = useState<"me" | "team">("me");
+  return (
+    <Section title="Inbox" onNew={() => {}} loading={false} done={true} onLoadMore={() => {}}>
+      <div style={{ display: "flex", gap: 6, padding: "0 0 8px" }}>
+        {(["me", "team"] as const).map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setScope(s)}
+            style={{
+              fontSize: 12,
+              padding: "3px 8px",
+              borderRadius: 6,
+              border: "1px solid #d4d4d8",
+              background: scope === s ? "#eef2ff" : "#fafafa",
+              cursor: "pointer",
+            }}
+          >
+            {s === "me" ? "Assigned to me" : "Teammates"}
+          </button>
+        ))}
+      </div>
+      <Empty label={"No " + (scope === "me" ? "items assigned to you" : "teammate items") + " yet."} />
+    </Section>
+  );
+}
+
+export default function ChannelHome() {
+  return (
+    <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+      <CanvasesSection />
+      <InboxSection />
+      <TasksSection />
+    </div>
+  );
+}
+`;
 }
 
 // Build the renderer-facing record from a file-system row. The name is the last

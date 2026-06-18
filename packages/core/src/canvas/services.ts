@@ -73,6 +73,7 @@ export interface IDashboardsService {
     versions: FreeformVersion[];
     currentVersionId?: string;
   }): Promise<DashboardRecord>;
+  ensureHomeCanvas(channelId: string): Promise<DashboardRecord>;
   delete(id: string): Promise<void>;
   refresh(input: {
     id: string;

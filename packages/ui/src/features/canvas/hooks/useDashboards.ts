@@ -68,6 +68,16 @@ export function useDashboardMutations() {
   const saveFreeform = useMutation(
     trpc.dashboards.saveFreeform.mutationOptions({ onSuccess: invalidate }),
   );
+  const ensureHome = useMutation(
+    trpc.dashboards.ensureHomeCanvas.mutationOptions({
+      onSuccess: () => {
+        invalidate();
+        // The folder now carries homeCanvasId; refresh the channel list so the
+        // sidebar/name-click can route straight to it next time.
+        void queryClient.invalidateQueries({ queryKey: ["canvas-channels"] });
+      },
+    }),
+  );
 
   return {
     saveDashboard: (id: string, spec: Spec | null, name?: string) =>
@@ -89,6 +99,10 @@ export function useDashboardMutations() {
         templateId,
       }),
     deleteDashboard: (id: string) => remove.mutateAsync({ id }),
+    // Ensure a channel has its home canvas (creating + seeding it if absent).
+    // Idempotent server-side; returns the home canvas record.
+    ensureHomeCanvas: (channelId: string) =>
+      ensureHome.mutateAsync({ channelId }),
     // Explicitly persist a freeform canvas's current code + history (autosave
     // already runs each turn; this is the manual Save affordance).
     saveFreeformDashboard: (
@@ -125,6 +139,38 @@ export function useDashboardMutations() {
     isCreating: create.isPending,
     isDeleting: remove.isPending,
   };
+}
+
+/**
+ * Open a channel's home canvas in the main content pane. Uses the channel's
+ * known homeCanvasId when present; otherwise creates one on the fly (backfill
+ * for channels made before home canvases existed) before navigating.
+ */
+export function useOpenHomeCanvas(): (channel: {
+  id: string;
+  homeCanvasId?: string;
+}) => Promise<void> {
+  const navigate = useNavigate();
+  const { ensureHomeCanvas } = useDashboardMutations();
+
+  return useCallback(
+    async (channel) => {
+      try {
+        const dashboardId =
+          channel.homeCanvasId ?? (await ensureHomeCanvas(channel.id)).id;
+        await navigate({
+          to: "/website/$channelId/dashboards/$dashboardId",
+          params: { channelId: channel.id, dashboardId },
+        });
+      } catch (error) {
+        log.error("Failed to open home canvas", { error });
+        toast.error("Couldn't open channel home", {
+          description: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [navigate, ensureHomeCanvas],
+  );
 }
 
 /** Create an empty canvas in a channel, enter edit mode, and navigate to it. */

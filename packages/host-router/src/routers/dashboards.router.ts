@@ -3,6 +3,7 @@ import {
   dashboardIdInput,
   dashboardRecordSchema,
   dashboardSummarySchema,
+  ensureHomeCanvasInput,
   listDashboardsInput,
   refreshDashboardInput,
   saveFreeformInput,
@@ -47,6 +48,14 @@ export const dashboardsRouter = router({
       ctx.container
         .get<IDashboardsService>(DASHBOARDS_SERVICE)
         .saveFreeform(input),
+    ),
+  ensureHomeCanvas: publicProcedure
+    .input(ensureHomeCanvasInput)
+    .output(dashboardRecordSchema)
+    .mutation(({ ctx, input }) =>
+      ctx.container
+        .get<IDashboardsService>(DASHBOARDS_SERVICE)
+        .ensureHomeCanvas(input.channelId),
     ),
   delete: publicProcedure
     .input(dashboardIdInput)

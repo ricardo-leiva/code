@@ -1,17 +1,21 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-// Keep the persisted store bounded: retain viewed state for the most recently
-// touched tasks only, evicting the oldest once the cap is exceeded.
+// Backstop on persisted size: pruneArchived handles the common case, but tasks
+// that are deleted without archiving would otherwise leak forever. Evict the
+// least-recently-touched tasks once this cap is exceeded.
 const MAX_TASKS = 200;
 
 interface ReviewViewedStoreState {
-  // taskId -> file key -> true (only viewed keys are stored)
-  viewed: Record<string, Record<string, true>>;
+  // taskId -> file key -> signature of the diff when the file was marked read.
+  // Insertion order is treated as recency (touched tasks re-inserted last).
+  viewed: Record<string, Record<string, string>>;
 }
 
 interface ReviewViewedStoreActions {
-  toggleViewed: (taskId: string, key: string) => void;
+  // Pass a signature to mark read (at that signature), or null to un-mark.
+  setViewed: (taskId: string, key: string, sig: string | null) => void;
+  pruneArchived: (archivedTaskIds: Iterable<string>) => void;
 }
 
 type ReviewViewedStore = ReviewViewedStoreState & ReviewViewedStoreActions;
@@ -20,14 +24,13 @@ export const useReviewViewedStore = create<ReviewViewedStore>()(
   persist(
     (set) => ({
       viewed: {},
-      toggleViewed: (taskId, key) =>
+      setViewed: (taskId, key, sig) =>
         set((state) => {
           const taskViewed = { ...(state.viewed[taskId] ?? {}) };
-          if (taskViewed[key]) delete taskViewed[key];
-          else taskViewed[key] = true;
+          if (sig === null) delete taskViewed[key];
+          else taskViewed[key] = sig;
 
-          // Re-insert the touched task last so it is evicted last. Drop the
-          // task entirely once it has no viewed files left.
+          // Re-insert the touched task last so it is evicted last.
           const { [taskId]: _omit, ...rest } = state.viewed;
           const next =
             Object.keys(taskViewed).length > 0
@@ -40,9 +43,28 @@ export const useReviewViewedStore = create<ReviewViewedStore>()(
           }
           return { viewed: next };
         }),
+      pruneArchived: (archivedTaskIds) =>
+        set((state) => {
+          let changed = false;
+          const next = { ...state.viewed };
+          for (const id of archivedTaskIds) {
+            if (id in next) {
+              delete next[id];
+              changed = true;
+            }
+          }
+          return changed ? { viewed: next } : state;
+        }),
     }),
     {
       name: "review-viewed-storage",
+      version: 1,
+      // v0 stored booleans without a signature; drop them so files re-resolve
+      // their read state under the signature-aware model.
+      migrate: (persisted, version) => {
+        if (version < 1) return { viewed: {} };
+        return persisted as ReviewViewedStoreState;
+      },
     },
   ),
 );

@@ -1,6 +1,7 @@
 import { WorkerPoolContextProvider } from "@pierre/diffs/react";
 import { useService } from "@posthog/di/react";
 import type { Task } from "@posthog/shared/domain-types";
+import { useArchivedTaskIds } from "@posthog/ui/features/archive/useArchivedTaskIds";
 import { Flex, Spinner, Text } from "@radix-ui/themes";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { VList, type VListHandle } from "virtua";
@@ -13,6 +14,7 @@ import { REVIEW_HOST, type ReviewHost } from "../reviewHost";
 import { useReviewNavigationStore } from "../reviewNavigationStore";
 import type { ReviewListItem, ReviewShellProps } from "../reviewShellParts";
 import { ReviewViewedContext } from "../reviewViewedContext";
+import { useReviewViewedStore } from "../reviewViewedStore";
 import { PendingReviewBar } from "./PendingReviewBar";
 import { ReviewToolbar } from "./ReviewToolbar";
 
@@ -104,7 +106,7 @@ export function ReviewShell({
   isEmpty,
   items,
   itemIndexByFilePath,
-  viewedFiles,
+  viewedRecord,
   onToggleViewed,
   onUncollapseFile,
   allExpanded,
@@ -130,9 +132,31 @@ export function ReviewShell({
   );
   const isExpanded = reviewMode === "expanded";
 
+  const currentSignatures = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const item of items) {
+      if (item.sig !== undefined) map.set(item.key, item.sig);
+    }
+    return map;
+  }, [items]);
+
+  // Drop persisted read state for archived tasks so it does not accumulate.
+  // Skip the task being reviewed: archiving it while its review is open must
+  // not wipe the read marks the user is actively working against.
+  const archivedTaskIds = useArchivedTaskIds();
+  const pruneArchived = useReviewViewedStore((s) => s.pruneArchived);
+  useEffect(() => {
+    const prunable = [...archivedTaskIds].filter((id) => id !== taskId);
+    if (prunable.length > 0) pruneArchived(prunable);
+  }, [archivedTaskIds, pruneArchived, taskId]);
+
   const viewedContextValue = useMemo(
-    () => ({ viewedFiles, toggleViewed: onToggleViewed }),
-    [viewedFiles, onToggleViewed],
+    () => ({
+      viewedRecord,
+      currentSignatures,
+      toggleViewed: onToggleViewed,
+    }),
+    [viewedRecord, currentSignatures, onToggleViewed],
   );
 
   const scrollRequest = useReviewNavigationStore(

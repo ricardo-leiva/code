@@ -1,4 +1,5 @@
 import type { parsePatchFiles } from "@pierre/diffs";
+import { contentHash } from "@posthog/core/code-review/contentHash";
 import {
   buildGithubFileUrl,
   computeSkipExpansion,
@@ -9,6 +10,35 @@ import { makeFileKey } from "../../git-interaction/utils/fileKey";
 import type { ReviewListItem } from "../reviewShellParts";
 import type { DiffOptions } from "../types";
 import { PatchRow, RemoteRow, UntrackedRow } from "./ReviewRows";
+
+// Signatures are cached by file-object identity. The file objects are stable
+// across re-renders (only replaced when the underlying diff is refetched), so
+// collapse toggles and other item rebuilds reuse the cached hash instead of
+// re-hashing every file.
+const signatureCache = new WeakMap<object, string>();
+
+// Prefer the unified patch (changes whenever upstream content does); fall back
+// to status + line counts when no patch is available.
+export function changedFileSignature(file: ChangedFile): string {
+  const cached = signatureCache.get(file);
+  if (cached !== undefined) return cached;
+  const sig = contentHash(
+    file.patch ??
+      `${file.status}:${file.linesAdded ?? 0}:${file.linesRemoved ?? 0}`,
+  );
+  signatureCache.set(file, sig);
+  return sig;
+}
+
+function patchFileSignature(
+  fileDiff: ReturnType<typeof parsePatchFiles>[number]["files"][number],
+): string {
+  const cached = signatureCache.get(fileDiff);
+  if (cached !== undefined) return cached;
+  const sig = contentHash(JSON.stringify(fileDiff.hunks ?? []));
+  signatureCache.set(fileDiff, sig);
+  return sig;
+}
 
 interface BuildPatchReviewItemsArgs {
   files: ReturnType<typeof parsePatchFiles>[number]["files"];
@@ -50,6 +80,7 @@ export function buildPatchReviewItems({
     return {
       key,
       scrollKey: key,
+      sig: patchFileSignature(fileDiff),
       node: (
         <PatchRow
           itemKey={key}
@@ -94,6 +125,7 @@ export function buildUntrackedReviewItems({
     return {
       key,
       scrollKey: key,
+      sig: changedFileSignature(file),
       node: (
         <UntrackedRow
           itemKey={key}
@@ -135,6 +167,7 @@ export function buildRemoteReviewItems({
     return {
       key: file.path,
       scrollKey: file.path,
+      sig: changedFileSignature(file),
       node: (
         <RemoteRow
           file={file}

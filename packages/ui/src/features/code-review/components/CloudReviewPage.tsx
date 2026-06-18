@@ -15,6 +15,7 @@ import {
   ReviewShell,
   useReviewState,
 } from "./ReviewShell";
+import { changedFileSignature } from "./reviewItemBuilders";
 
 interface CloudReviewPageProps {
   task: Task;
@@ -50,7 +51,7 @@ export function CloudReviewPage({ task }: CloudReviewPageProps) {
     expandAll,
     collapseAll,
     uncollapseFile,
-    viewedFiles,
+    viewedRecord,
     toggleViewed,
   } = useReviewState(reviewFiles, allPaths, taskId);
 
@@ -72,6 +73,7 @@ export function CloudReviewPage({ task }: CloudReviewPageProps) {
       return {
         key: file.path,
         scrollKey: file.path,
+        sig: changedFileSignature(file),
         node: (
           <PatchedFileDiff
             file={file}
@@ -135,7 +137,7 @@ export function CloudReviewPage({ task }: CloudReviewPageProps) {
       onUncollapseFile={uncollapseFile}
       items={items}
       itemIndexByFilePath={itemIndexByFilePath}
-      viewedFiles={viewedFiles}
+      viewedRecord={viewedRecord}
       onToggleViewed={toggleViewed}
     />
   );

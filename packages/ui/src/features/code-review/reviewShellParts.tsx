@@ -74,32 +74,27 @@ export function useReviewState(
   };
 }
 
+const EMPTY_VIEWED_RECORD: Record<string, string> = {};
+
 function useViewedState(
   taskId: string,
   setFileCollapsed: (filePath: string, collapsed: boolean) => void,
 ) {
-  const viewedRecord = useReviewViewedStore((s) => s.viewed[taskId]);
-  const toggleViewedStore = useReviewViewedStore((s) => s.toggleViewed);
+  const viewedRecord =
+    useReviewViewedStore((s) => s.viewed[taskId]) ?? EMPTY_VIEWED_RECORD;
+  const setViewed = useReviewViewedStore((s) => s.setViewed);
 
-  const viewedFiles = useMemo(
-    () => new Set(Object.keys(viewedRecord ?? {})),
-    [viewedRecord],
-  );
-
-  // Toggling viewed mirrors GitHub: marking a file viewed collapses it,
-  // un-marking expands it again.
+  // `nextSig` is the signature to store, or null to clear the read mark.
+  // Marking a file read collapses it; un-marking expands it (mirrors GitHub).
   const toggleViewed = useCallback(
-    (key: string) => {
-      const wasViewed = Boolean(
-        useReviewViewedStore.getState().viewed[taskId]?.[key],
-      );
-      toggleViewedStore(taskId, key);
-      setFileCollapsed(key, !wasViewed);
+    (key: string, nextSig: string | null) => {
+      setViewed(taskId, key, nextSig);
+      setFileCollapsed(key, nextSig !== null);
     },
-    [taskId, toggleViewedStore, setFileCollapsed],
+    [taskId, setViewed, setFileCollapsed],
   );
 
-  return { viewedFiles, toggleViewed };
+  return { viewedRecord, toggleViewed };
 }
 
 function useCollapseState(filePaths: string[]) {
@@ -164,8 +159,8 @@ export interface ReviewShellProps {
   isEmpty: boolean;
   items: ReviewListItem[];
   itemIndexByFilePath: Map<string, number>;
-  viewedFiles: Set<string>;
-  onToggleViewed: (key: string) => void;
+  viewedRecord: Record<string, string>;
+  onToggleViewed: (key: string, sig: string | null) => void;
   onUncollapseFile?: (filePath: string) => void;
   allExpanded: boolean;
   onExpandAll: () => void;
@@ -180,6 +175,8 @@ export interface ReviewShellProps {
 export interface ReviewListItem {
   key: string;
   scrollKey?: string;
+  // Signature of the file's current diff; absent for non-file rows.
+  sig?: string;
   node: ReactNode;
 }
 
@@ -203,7 +200,7 @@ export function FileHeaderRow({
   viewedKey?: string;
 }) {
   return (
-    // The toggle target is a button; the open-file / viewed controls sit
+    // The toggle target is a button; the open-file / read controls sit
     // alongside it (not nested inside it, which would be invalid HTML).
     <div className="flex w-full items-center gap-[6px] border-b border-b-(--gray-5) px-[12px] py-[6px] font-[var(--code-font-family)] text-xs">
       <button
@@ -251,26 +248,41 @@ function ViewedCheckbox({ viewedKey }: { viewedKey: string }) {
   const ctx = useReviewViewedContext();
   if (!ctx) return null;
 
-  const viewed = ctx.viewedFiles.has(viewedKey);
+  const current = ctx.currentSignatures.get(viewedKey);
+  if (current === undefined) return null;
+
+  const stored = ctx.viewedRecord[viewedKey];
+  const read = stored === current;
+  const changed = stored !== undefined && stored !== current;
 
   return (
     <button
       type="button"
-      aria-pressed={viewed}
-      aria-label="Viewed"
-      title={viewed ? "Mark as not viewed" : "Mark as viewed"}
+      aria-pressed={read}
+      aria-label="Read"
+      title={
+        changed
+          ? "Changed since you marked it read — click to mark read again"
+          : read
+            ? "Mark as unread"
+            : "Mark as read"
+      }
       onClick={(e) => {
         e.stopPropagation();
-        ctx.toggleViewed(viewedKey);
+        ctx.toggleViewed(viewedKey, read ? null : current);
       }}
       className="ml-[6px] flex shrink-0 cursor-pointer items-center gap-[3px] border-0 bg-transparent p-0 text-(--gray-9) hover:text-(--gray-11)"
     >
-      {viewed ? (
+      {read ? (
         <CheckSquare size={14} weight="fill" color="var(--accent-9)" />
       ) : (
-        <Square size={14} />
+        <Square size={14} color={changed ? "var(--amber-9)" : undefined} />
       )}
-      <span className="text-[10px]">Viewed</span>
+      <span
+        className={changed ? "text-(--amber-11) text-[10px]" : "text-[10px]"}
+      >
+        {changed ? "Changed" : "Read"}
+      </span>
     </button>
   );
 }

@@ -203,41 +203,47 @@ export function FileHeaderRow({
   viewedKey?: string;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className="flex w-full cursor-pointer items-center gap-[6px] border-0 border-b border-b-(--gray-5) bg-transparent px-[12px] py-[6px] text-left font-[var(--code-font-family)] text-xs"
-    >
-      <CaretDown
-        size={12}
-        color="var(--gray-9)"
-        style={{
-          transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)",
-          transition: "transform 0.15s",
-        }}
-        className="shrink-0"
-      />
-      <FileIcon filename={fileName} size={14} />
-      <span
-        title={dirPath + fileName}
-        className="flex min-w-0 flex-1 gap-[6px]"
+    // The toggle target is a button; the open-file / viewed controls sit
+    // alongside it (not nested inside it, which would be invalid HTML).
+    <div className="flex w-full items-center gap-[6px] border-b border-b-(--gray-5) px-[12px] py-[6px] font-[var(--code-font-family)] text-xs">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex min-w-0 flex-1 cursor-pointer items-center gap-[6px] border-0 bg-transparent p-0 text-left"
       >
-        <span className="shrink-0 whitespace-nowrap font-semibold">
-          {fileName}
+        <CaretDown
+          size={12}
+          color="var(--gray-9)"
+          style={{
+            transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)",
+            transition: "transform 0.15s",
+          }}
+          className="shrink-0"
+        />
+        <FileIcon filename={fileName} size={14} />
+        <span
+          title={dirPath + fileName}
+          className="flex min-w-0 flex-1 gap-[6px]"
+        >
+          <span className="shrink-0 whitespace-nowrap font-semibold">
+            {fileName}
+          </span>
+          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-(--gray-9)">
+            {dirPath}
+          </span>
         </span>
-        <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-(--gray-9)">
-          {dirPath}
+        <span className="font-mono text-[10px]">
+          {additions > 0 && (
+            <span className="mr-[2px] text-(--green-9)">+{additions}</span>
+          )}
+          {deletions > 0 && (
+            <span className="text-(--red-9)">-{deletions}</span>
+          )}
         </span>
-      </span>
-      <span className="font-mono text-[10px]">
-        {additions > 0 && (
-          <span className="mr-[2px] text-(--green-9)">+{additions}</span>
-        )}
-        {deletions > 0 && <span className="text-(--red-9)">-{deletions}</span>}
-      </span>
+      </button>
       {trailing}
       {viewedKey !== undefined && <ViewedCheckbox viewedKey={viewedKey} />}
-    </button>
+    </div>
   );
 }
 

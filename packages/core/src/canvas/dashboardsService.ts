@@ -480,10 +480,13 @@ function useChannelRows(kind: "dashboard" | "task") {
   return { rows, loadMore, loading, done };
 }
 
-// A fixed-height, scrollable section. A sentinel at the bottom (observed against
-// THIS box, not the page) fires onLoadMore as the user scrolls near the end.
+// A fixed-height, scrollable section card. A sentinel at the bottom (observed
+// against THIS box, not the page) fires onLoadMore as the user scrolls near the
+// end. Styled to match the PostHog Code app: greenish-gray neutrals, soft
+// shadow, ~16px radius, a per-section accent dot.
 function Section(props: {
   title: string;
+  accent: string;
   onNew: () => void;
   loading: boolean;
   done: boolean;
@@ -510,12 +513,18 @@ function Section(props: {
   return (
     <section
       style={{
-        border: "1px solid #e5e7eb",
-        borderRadius: 10,
-        background: "#fff",
+        flex: "1 1 0",
+        minWidth: 0,
+        maxWidth: 380,
+        height: 460,
         display: "flex",
         flexDirection: "column",
-        minWidth: 0,
+        background: "#ffffff",
+        border: "1px solid #e4e5de",
+        borderRadius: 16,
+        overflow: "hidden",
+        boxShadow:
+          "0 1px 2px rgba(13,13,13,0.04), 0 12px 32px rgba(13,13,13,0.06)",
       }}
     >
       <header
@@ -523,33 +532,57 @@ function Section(props: {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "10px 12px",
-          borderBottom: "1px solid #f0f0f0",
+          padding: "14px 16px",
+          borderBottom: "1px solid #eceee8",
         }}
       >
-        <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>{props.title}</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: 999,
+              background: props.accent,
+              boxShadow: "0 0 0 3px " + props.accent + "22",
+            }}
+          />
+          <h2
+            style={{
+              margin: 0,
+              fontSize: 15,
+              fontWeight: 600,
+              color: "#0d0d0d",
+              letterSpacing: "-0.01em",
+            }}
+          >
+            {props.title}
+          </h2>
+        </div>
         <button
           type="button"
+          className="ph-btn"
           onClick={props.onNew}
           style={{
             fontSize: 12,
-            padding: "3px 8px",
-            borderRadius: 6,
-            border: "1px solid #d4d4d8",
-            background: "#fafafa",
+            fontWeight: 500,
+            padding: "4px 10px",
+            borderRadius: 8,
+            border: "1px solid #d8dbd1",
+            background: "#f2f3ee",
+            color: "#3a4036",
             cursor: "pointer",
           }}
         >
           + New
         </button>
       </header>
-      <div ref={scrollRef} style={{ maxHeight: 280, overflowY: "auto", padding: 8 }}>
+      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: 8 }}>
         {props.children}
         {!props.done ? (
           <div ref={sentinelRef} style={{ height: 1 }} />
         ) : null}
         {props.loading ? (
-          <div style={{ padding: 8, fontSize: 12, color: "#71717a" }}>Loading…</div>
+          <div style={{ padding: 8, fontSize: 12, color: "#93998a" }}>Loading…</div>
         ) : null}
       </div>
     </section>
@@ -559,10 +592,12 @@ function Section(props: {
 function ListRow(props: { title: string; meta?: string }) {
   return (
     <div
+      className="ph-row"
       style={{
-        padding: "7px 8px",
-        borderRadius: 6,
+        padding: "8px 10px",
+        borderRadius: 8,
         fontSize: 13,
+        color: "#3a4036",
         display: "flex",
         justifyContent: "space-between",
         gap: 8,
@@ -572,7 +607,7 @@ function ListRow(props: { title: string; meta?: string }) {
         {props.title}
       </span>
       {props.meta ? (
-        <span style={{ color: "#a1a1aa", fontSize: 11, flexShrink: 0 }}>{props.meta}</span>
+        <span style={{ color: "#93998a", fontSize: 11, flexShrink: 0 }}>{props.meta}</span>
       ) : null}
     </div>
   );
@@ -580,7 +615,21 @@ function ListRow(props: { title: string; meta?: string }) {
 
 function Empty(props: { label: string }) {
   return (
-    <div style={{ padding: 8, fontSize: 12, color: "#a1a1aa" }}>{props.label}</div>
+    <div
+      style={{
+        display: "flex",
+        height: "100%",
+        minHeight: 120,
+        alignItems: "center",
+        justifyContent: "center",
+        textAlign: "center",
+        padding: 16,
+        fontSize: 12,
+        color: "#a9af9f",
+      }}
+    >
+      {props.label}
+    </div>
   );
 }
 
@@ -589,6 +638,7 @@ function CanvasesSection() {
   return (
     <Section
       title="Canvases"
+      accent="#f54d00"
       onNew={() => {}}
       loading={loading}
       done={done}
@@ -607,6 +657,7 @@ function TasksSection() {
   return (
     <Section
       title="Tasks"
+      accent="#f8be2a"
       onNew={() => {}}
       loading={loading}
       done={done}
@@ -624,38 +675,80 @@ function TasksSection() {
 // assignee toggle and "New" button are placeholders the host will wire up later.
 function InboxSection() {
   const [scope, setScope] = useState<"me" | "team">("me");
+  const accent = "#1d4aff";
   return (
-    <Section title="Inbox" onNew={() => {}} loading={false} done={true} onLoadMore={() => {}}>
-      <div style={{ display: "flex", gap: 6, padding: "0 0 8px" }}>
-        {(["me", "team"] as const).map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => setScope(s)}
-            style={{
-              fontSize: 12,
-              padding: "3px 8px",
-              borderRadius: 6,
-              border: "1px solid #d4d4d8",
-              background: scope === s ? "#eef2ff" : "#fafafa",
-              cursor: "pointer",
-            }}
-          >
-            {s === "me" ? "Assigned to me" : "Teammates"}
-          </button>
-        ))}
+    <Section title="Inbox" accent={accent} onNew={() => {}} loading={false} done={true} onLoadMore={() => {}}>
+      <div style={{ display: "flex", gap: 6, padding: "2px 2px 10px" }}>
+        {(["me", "team"] as const).map((s) => {
+          const active = scope === s;
+          return (
+            <button
+              key={s}
+              type="button"
+              className="ph-btn"
+              onClick={() => setScope(s)}
+              style={{
+                fontSize: 12,
+                fontWeight: 500,
+                padding: "4px 10px",
+                borderRadius: 8,
+                border: "1px solid " + (active ? accent : "#d8dbd1"),
+                background: active ? accent + "14" : "#f2f3ee",
+                color: active ? accent : "#3a4036",
+                cursor: "pointer",
+              }}
+            >
+              {s === "me" ? "Assigned to me" : "Teammates"}
+            </button>
+          );
+        })}
       </div>
       <Empty label={"No " + (scope === "me" ? "items assigned to you" : "teammate items") + " yet."} />
     </Section>
   );
 }
 
+const STYLE_TEXT =
+  ".ph-btn{transition:background .15s ease,border-color .15s ease,color .15s ease}" +
+  ".ph-btn:hover{background:#eceee8;border-color:#cbd0c3}" +
+  ".ph-row{transition:background .12s ease}" +
+  ".ph-row:hover{background:#f2f3ee}" +
+  "*::-webkit-scrollbar{width:10px;height:10px}" +
+  "*::-webkit-scrollbar-thumb{background:#cbd0c3;border-radius:8px;border:2px solid transparent;background-clip:padding-box}" +
+  "*::-webkit-scrollbar-thumb:hover{background:#a9af9f;background-clip:padding-box}";
+
 export default function ChannelHome() {
   return (
-    <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-      <CanvasesSection />
-      <InboxSection />
-      <TasksSection />
+    <div
+      style={{
+        minHeight: "100vh",
+        boxSizing: "border-box",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 40,
+        background: "linear-gradient(180deg, #f4f5f0 0%, #eceee8 100%)",
+        fontFamily:
+          '"Open Runde", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+        color: "#3a4036",
+      }}
+    >
+      <style>{STYLE_TEXT}</style>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "stretch",
+          justifyContent: "center",
+          gap: 20,
+          width: "100%",
+          maxWidth: 1200,
+          flexWrap: "wrap",
+        }}
+      >
+        <CanvasesSection />
+        <InboxSection />
+        <TasksSection />
+      </div>
     </div>
   );
 }

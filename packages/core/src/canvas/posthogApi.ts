@@ -46,7 +46,11 @@ export async function runHogQLQuery(
         // query-tagging guard is satisfied (it hard-fails untagged ClickHouse
         // queries in local dev). The desktop canvas/dashboard surfaces are the
         // "max" product.
-        query: { kind: "HogQLQuery", query: hogql, tags: { productKey: "max" } },
+        query: {
+          kind: "HogQLQuery",
+          query: hogql,
+          tags: { productKey: "max" },
+        },
         ...(opts?.refresh ? { refresh: opts.refresh } : {}),
       }),
     },

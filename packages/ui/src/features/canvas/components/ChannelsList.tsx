@@ -487,7 +487,11 @@ function ChannelSection({
           <span className="relative inline-flex size-[14px] items-center justify-center text-gray-10">
             <HashIcon size={14} className="group-hover/chan:invisible" />
             <span className="absolute inset-0 hidden items-center justify-center group-hover/chan:flex">
-              {open ? <CaretDownIcon size={12} /> : <CaretRightIcon size={12} />}
+              {open ? (
+                <CaretDownIcon size={12} />
+              ) : (
+                <CaretRightIcon size={12} />
+              )}
             </span>
           </span>
         </Button>

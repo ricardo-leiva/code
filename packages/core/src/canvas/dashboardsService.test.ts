@@ -193,3 +193,74 @@ describe("DashboardsService.ensureHomeCanvas", () => {
     expect(Object.keys(entries)).toEqual(["chan-1", "home-x"]);
   });
 });
+
+describe("DashboardsService.resetHomeCanvas", () => {
+  it("appends a fresh default version without dropping history", async () => {
+    const { fs, entries } = statefulFs({
+      "chan-1": {
+        id: "chan-1",
+        path: "marketing",
+        type: "folder",
+        meta: { homeCanvasId: "home-x" },
+      },
+      "home-x": {
+        id: "home-x",
+        path: "marketing/Home",
+        type: "dashboard",
+        meta: {
+          channelId: "chan-1",
+          kind: "freeform",
+          code: "// edited by the user",
+          versions: [{ id: "v1", code: "// edited by the user", createdAt: 1 }],
+          currentVersionId: "v1",
+        },
+      },
+    });
+    const service = new DashboardsService(
+      fs,
+      {} as DashboardQueryService,
+      {} as never,
+    );
+
+    const record = await service.resetHomeCanvas("chan-1");
+
+    // The returned record carries the regenerated default source (queries the
+    // file_system table and bakes both ids), not the user's edit.
+    expect(record.id).toBe("home-x");
+    expect(record.code).toContain("system.file_system");
+    expect(record.code).toContain("chan-1");
+    expect(record.code).toContain("home-x");
+    expect(record.code).not.toContain("// edited by the user");
+
+    // History is preserved: the prior version stays and the default is appended
+    // as the new head, so Undo can restore the user's edit.
+    expect(record.versions?.map((v) => v.id)).toEqual([
+      "v1",
+      record.currentVersionId,
+    ]);
+    expect(record.currentVersionId).not.toBe("v1");
+    expect(record.versions?.at(-1)?.code).toBe(record.code);
+
+    // Persisted to the same canvas (no new canvas created).
+    expect(Object.keys(entries)).toEqual(["chan-1", "home-x"]);
+  });
+
+  it("creates a home canvas if the channel has none yet", async () => {
+    const { fs, entries } = statefulFs({
+      "chan-1": { id: "chan-1", path: "marketing", type: "folder", meta: {} },
+    });
+    const service = new DashboardsService(
+      fs,
+      {} as DashboardQueryService,
+      {} as never,
+    );
+
+    const record = await service.resetHomeCanvas("chan-1");
+
+    expect(record.id).toBe("new-1");
+    expect(record.code).toContain("system.file_system");
+    expect(
+      (entries["chan-1"]?.meta as { homeCanvasId?: string }).homeCanvasId,
+    ).toBe("new-1");
+  });
+});

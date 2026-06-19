@@ -232,37 +232,43 @@ export class DashboardsService {
     const folder = await this.getEntry(channelId);
     if (!folder) throw new Error("Channel not found");
 
+    // Resolve (or create) the canvas, then seed it. Each step is recorded before
+    // the next runs, so a failure mid-way leaves a retryable state rather than an
+    // orphan: if `create` succeeds but seeding throws, the folder already points
+    // at the canvas, so the next call reuses it (and seeds it below) instead of
+    // creating a second "Home".
     const existingId = folder.meta?.homeCanvasId;
-    if (existingId) {
-      const existing = await this.get(existingId);
-      if (existing) return existing;
+    let record = existingId ? await this.get(existingId) : null;
+    if (!record) {
+      // The canvas's own id is baked into the code so it can exclude itself from
+      // the "Canvases" list; the channel id lets it resolve the (rename-safe)
+      // folder path at runtime.
+      record = await this.create({
+        channelId,
+        name: HOME_CANVAS_NAME,
+        spec: null,
+        templateId: FREEFORM_TEMPLATE_ID,
+      });
+      await this.setHomeCanvasId(channelId, record.id, folder);
     }
 
-    // Create the freeform canvas under the channel, then seed its source. The
-    // canvas's own id is baked into the code so it can exclude itself from the
-    // "Canvases" list; the channel id lets it resolve the (rename-safe) folder
-    // path at runtime.
-    const record = await this.create({
-      channelId,
-      name: HOME_CANVAS_NAME,
-      spec: null,
-      templateId: FREEFORM_TEMPLATE_ID,
-    });
-    const code = buildHomeCanvasCode(channelId, record.id);
-    const version: FreeformVersion = {
-      id: `home-${record.id}`,
-      code,
-      createdAt: Date.now(),
-    };
-    const saved = await this.saveFreeform({
-      id: record.id,
-      code,
-      versions: [version],
-      currentVersionId: version.id,
-    });
-
-    await this.setHomeCanvasId(channelId, record.id, folder);
-    return saved;
+    // Seed the source if it isn't already (covers a prior create whose seed
+    // failed). A canvas that already has code is returned untouched.
+    if (!record.code) {
+      const code = buildHomeCanvasCode(channelId, record.id);
+      const version: FreeformVersion = {
+        id: `home-${record.id}`,
+        code,
+        createdAt: Date.now(),
+      };
+      record = await this.saveFreeform({
+        id: record.id,
+        code,
+        versions: [version],
+        currentVersionId: version.id,
+      });
+    }
+    return record;
   }
 
   // Rebuild a channel's home canvas from the default template, discarding edits.
@@ -523,6 +529,10 @@ function Section(props: {
   done: boolean;
   onLoadMore: () => void;
   children: any;
+  // A "+ New" that isn't wired yet: disable it and explain via tooltip rather
+  // than offering a button that silently does nothing.
+  newDisabled?: boolean;
+  newTooltip?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -593,6 +603,8 @@ function Section(props: {
           type="button"
           className="ph-btn"
           onClick={props.onNew}
+          disabled={props.newDisabled}
+          title={props.newTooltip}
           style={{
             fontSize: 12,
             fontWeight: 500,
@@ -601,7 +613,8 @@ function Section(props: {
             border: "1px solid #d8dbd1",
             background: "#f2f3ee",
             color: "#3a4036",
-            cursor: "pointer",
+            cursor: props.newDisabled ? "not-allowed" : "pointer",
+            opacity: props.newDisabled ? 0.5 : 1,
           }}
         >
           + New
@@ -726,7 +739,7 @@ function InboxSection() {
   const [scope, setScope] = useState<"me" | "team">("me");
   const accent = "#1d4aff";
   return (
-    <Section title="Inbox" accent={accent} onNew={() => {}} loading={false} done={true} onLoadMore={() => {}}>
+    <Section title="Inbox" accent={accent} onNew={() => {}} loading={false} done={true} onLoadMore={() => {}} newDisabled={true} newTooltip="Coming soon">
       <div style={{ display: "flex", gap: 6, padding: "2px 2px 10px" }}>
         {(["me", "team"] as const).map((s) => {
           const active = scope === s;

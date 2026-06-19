@@ -1,4 +1,5 @@
 import type { Task } from "@posthog/shared/domain-types";
+import { BrowserPanel } from "../../browser/BrowserPanel";
 import { CodeEditorPanel } from "../../code-editor/components/CodeEditorPanel";
 import { CloudReviewPage } from "../../code-review/components/CloudReviewPage";
 import { ReviewPage } from "../../code-review/components/ReviewPage";
@@ -15,12 +16,14 @@ interface TabContentRendererProps {
   tab: Tab;
   taskId: string;
   task: Task;
+  panelId: string;
 }
 
 export function TabContentRenderer({
   tab,
   taskId,
   task,
+  panelId,
 }: TabContentRendererProps) {
   const isCloud = useIsWorkspaceCloudRun(taskId);
   const { data } = tab;
@@ -64,6 +67,16 @@ export function TabContentRenderer({
     case "context":
       return (
         <ChannelContextTab channelName={data.channelName} body={data.body} />
+      );
+
+    case "browser":
+      return (
+        <BrowserPanel
+          browserId={data.browserId}
+          initialUrl={data.url}
+          taskId={taskId}
+          panelId={panelId}
+        />
       );
 
     case "other":

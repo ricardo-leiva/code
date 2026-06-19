@@ -1,16 +1,44 @@
-import { ChatCenteredText, FileText, Terminal } from "@phosphor-icons/react";
+import {
+  ChatCenteredText,
+  FileText,
+  GlobeSimple,
+  SpinnerGap,
+  Terminal,
+} from "@phosphor-icons/react";
 import { resolveTabAbsolutePath } from "@posthog/core/panels/resolveTabPath";
 import type { Task } from "@posthog/shared/domain-types";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { ImperativePanelGroupHandle } from "react-resizable-panels";
 import { FileIcon } from "../../../primitives/FileIcon";
 import { ActionTabIcon } from "../../actions/ActionTabIcon";
+import { useBrowserViewState } from "../../browser/browserStore";
 import { useCwd } from "../../sidebar/useCwd";
 import { TabContentRenderer } from "../../task-detail/components/TabContentRenderer";
 import type { SplitDirection } from "../panelLayoutStore";
 import { usePanelLayoutStore } from "../panelLayoutStore";
 import { shouldUpdateSizes } from "../panelLayoutUtils";
 import type { PanelNode, Tab } from "../panelTypes";
+
+function BrowserTabIcon({ browserId }: { browserId: string }) {
+  const { favicon, isLoading } = useBrowserViewState(browserId);
+  if (isLoading) {
+    return <SpinnerGap size={14} className="animate-spin text-(--accent-9)" />;
+  }
+  if (favicon) {
+    return (
+      <img
+        src={favicon}
+        width={14}
+        height={14}
+        style={{ objectFit: "contain", borderRadius: 2 }}
+        onError={(e) => {
+          (e.currentTarget as HTMLImageElement).style.display = "none";
+        }}
+      />
+    );
+  }
+  return <GlobeSimple size={14} />;
+}
 
 export interface PanelLayoutState {
   updateSizes: (taskId: string, groupId: string, sizes: number[]) => void;
@@ -21,6 +49,7 @@ export interface PanelLayoutState {
   keepTab: (taskId: string, panelId: string, tabId: string) => void;
   setFocusedPanel: (taskId: string, panelId: string) => void;
   addTerminalTab: (taskId: string, panelId: string) => void;
+  addBrowserTab: (taskId: string, panelId: string, url?: string) => void;
   splitPanel: (
     taskId: string,
     tabId: string,
@@ -28,6 +57,7 @@ export interface PanelLayoutState {
     targetPanelId: string,
     direction: SplitDirection,
   ) => void;
+  updateTabLabel: (taskId: string, tabId: string, label: string) => void;
   draggingTabId: string | null;
   draggingTabPanelId: string | null;
   focusedPanelId: string | null;
@@ -45,6 +75,8 @@ export function usePanelLayoutState(taskId: string): PanelLayoutState {
         keepTab: state.keepTab,
         setFocusedPanel: state.setFocusedPanel,
         addTerminalTab: state.addTerminalTab,
+        addBrowserTab: state.addBrowserTab,
+        updateTabLabel: state.updateTabLabel,
         splitPanel: state.splitPanel,
         draggingTabId: state.getLayout(taskId)?.draggingTabId ?? null,
         draggingTabPanelId: state.getLayout(taskId)?.draggingTabPanelId ?? null,
@@ -109,6 +141,8 @@ export function useTabInjection(
             icon = <ActionTabIcon actionId={tab.data.actionId} />;
           } else if (tab.data.type === "context") {
             icon = <FileText size={14} />;
+          } else if (tab.data.type === "browser") {
+            icon = <BrowserTabIcon browserId={tab.data.browserId} />;
           }
         }
 
@@ -121,7 +155,12 @@ export function useTabInjection(
         return {
           ...updatedTab,
           component: (
-            <TabContentRenderer tab={updatedTab} taskId={taskId} task={task} />
+            <TabContentRenderer
+              tab={updatedTab}
+              taskId={taskId}
+              task={task}
+              panelId={panelId}
+            />
           ),
           onClose: tab.closeable
             ? () => {

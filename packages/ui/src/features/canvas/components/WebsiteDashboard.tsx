@@ -52,7 +52,14 @@ export function WebsiteDashboard({ dashboardId }: { dashboardId: string }) {
   // Freeform canvases render their React app in a sandboxed iframe in both view
   // and edit mode (edit adds the chat panel + version controls).
   if (isFreeform) {
-    return <FreeformCanvasView threadId={threadId} interactive={editing} />;
+    return (
+      <FreeformCanvasView
+        threadId={threadId}
+        interactive={editing}
+        channelId={dashboard.channelId}
+        dashboardId={dashboardId}
+      />
+    );
   }
 
   if (editing) {

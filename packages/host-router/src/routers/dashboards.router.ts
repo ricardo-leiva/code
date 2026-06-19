@@ -57,6 +57,14 @@ export const dashboardsRouter = router({
         .get<IDashboardsService>(DASHBOARDS_SERVICE)
         .ensureHomeCanvas(input.channelId),
     ),
+  resetHomeCanvas: publicProcedure
+    .input(ensureHomeCanvasInput)
+    .output(dashboardRecordSchema)
+    .mutation(({ ctx, input }) =>
+      ctx.container
+        .get<IDashboardsService>(DASHBOARDS_SERVICE)
+        .resetHomeCanvas(input.channelId),
+    ),
   delete: publicProcedure
     .input(dashboardIdInput)
     .mutation(({ ctx, input }) =>

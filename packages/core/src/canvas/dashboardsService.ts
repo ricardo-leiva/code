@@ -265,6 +265,34 @@ export class DashboardsService {
     return saved;
   }
 
+  // Rebuild a channel's home canvas from the default template, discarding edits.
+  // Non-destructive: the pre-reset source is kept as the prior version (so Undo
+  // restores it) and the regenerated default is appended as the new head. If the
+  // channel has no home canvas yet, this is just a create. Only valid for the
+  // home canvas — regular canvases have no "default" to reset to.
+  async resetHomeCanvas(channelId: string): Promise<DashboardRecord> {
+    const folder = await this.getEntry(channelId);
+    if (!folder) throw new Error("Channel not found");
+
+    const homeCanvasId = folder.meta?.homeCanvasId;
+    if (!homeCanvasId) return this.ensureHomeCanvas(channelId);
+    const record = await this.get(homeCanvasId);
+    if (!record) return this.ensureHomeCanvas(channelId);
+
+    const code = buildHomeCanvasCode(channelId, homeCanvasId);
+    const version: FreeformVersion = {
+      id: `reset-${homeCanvasId}-${Date.now()}`,
+      code,
+      createdAt: Date.now(),
+    };
+    return this.saveFreeform({
+      id: homeCanvasId,
+      code,
+      versions: [...(record.versions ?? []), version],
+      currentVersionId: version.id,
+    });
+  }
+
   // Point a channel folder at its home canvas by writing homeCanvasId onto the
   // folder's meta (preserving any existing meta keys).
   private async setHomeCanvasId(
@@ -388,7 +416,10 @@ export class DashboardsService {
 //   - Inbox / to-dos: stubbed (no data source yet) with an assignee filter.
 //   - Tasks: this channel's filed `task` rows, newest first.
 // Each list shows a page at a time and loads more as its own box is scrolled.
-// The "New" buttons are intentionally no-ops until the host wires them up.
+// Rows and the "New" buttons drive host routing via the allowlisted
+// `ph.navigate` bridge (toTask/toNewTask/toCanvas/toNewCanvas); the Inbox stub
+// stays a no-op until it has a data source. channelId is host-supplied, so the
+// canvas can only navigate within its own channel.
 // channelId is baked in (the path is resolved at runtime so renames are safe);
 // homeCanvasId lets the Canvases list exclude this board.
 function buildHomeCanvasCode(channelId: string, homeCanvasId: string): string {
@@ -589,10 +620,19 @@ function Section(props: {
   );
 }
 
-function ListRow(props: { title: string; meta?: string }) {
+function ListRow(props: { title: string; meta?: string; onClick?: () => void }) {
   return (
     <div
       className="ph-row"
+      role={props.onClick ? "button" : undefined}
+      tabIndex={props.onClick ? 0 : undefined}
+      onClick={props.onClick}
+      onKeyDown={(e) => {
+        if (props.onClick && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          props.onClick();
+        }
+      }}
       style={{
         padding: "8px 10px",
         borderRadius: 8,
@@ -601,6 +641,7 @@ function ListRow(props: { title: string; meta?: string }) {
         display: "flex",
         justifyContent: "space-between",
         gap: 8,
+        cursor: props.onClick ? "pointer" : "default",
       }}
     >
       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -639,14 +680,14 @@ function CanvasesSection() {
     <Section
       title="Canvases"
       accent="#f54d00"
-      onNew={() => {}}
+      onNew={() => ph.navigate?.toNewCanvas()}
       loading={loading}
       done={done}
       onLoadMore={loadMore}
     >
       {rows.length === 0 && done ? <Empty label="No canvases yet." /> : null}
       {rows.map((r) => (
-        <ListRow key={r.id} title={r.title} />
+        <ListRow key={r.id} title={r.title} onClick={() => ph.navigate?.toCanvas(r.id)} />
       ))}
     </Section>
   );
@@ -658,14 +699,22 @@ function TasksSection() {
     <Section
       title="Tasks"
       accent="#f8be2a"
-      onNew={() => {}}
+      onNew={() => ph.navigate?.toNewTask()}
       loading={loading}
       done={done}
       onLoadMore={loadMore}
     >
       {rows.length === 0 && done ? <Empty label="No tasks yet." /> : null}
       {rows.map((r) => (
-        <ListRow key={r.id} title={r.title} meta={r.createdAt.slice(0, 10)} />
+        <ListRow
+          key={r.id}
+          title={r.title}
+          meta={r.createdAt.slice(0, 10)}
+          // A task row's file-system id is NOT the task id; the task id is the
+          // row's ref (ChannelTasksService files it as ref=taskId). Only rows
+          // with a ref are navigable.
+          onClick={r.ref ? () => ph.navigate?.toTask(r.ref as string) : undefined}
+        />
       ))}
     </Section>
   );

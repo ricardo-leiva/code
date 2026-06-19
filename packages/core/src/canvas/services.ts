@@ -74,6 +74,7 @@ export interface IDashboardsService {
     currentVersionId?: string;
   }): Promise<DashboardRecord>;
   ensureHomeCanvas(channelId: string): Promise<DashboardRecord>;
+  resetHomeCanvas(channelId: string): Promise<DashboardRecord>;
   delete(id: string): Promise<void>;
   refresh(input: {
     id: string;

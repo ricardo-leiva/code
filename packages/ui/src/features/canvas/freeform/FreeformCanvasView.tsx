@@ -1,19 +1,32 @@
 import {
+  ArrowCounterClockwiseIcon,
   ArrowUUpLeftIcon,
   ArrowUUpRightIcon,
   WarningIcon,
 } from "@phosphor-icons/react";
-import type { CanvasAnalyticsConfig } from "@posthog/core/canvas/freeformSchemas";
+import type {
+  CanvasAnalyticsConfig,
+  CanvasNavIntent,
+} from "@posthog/core/canvas/freeformSchemas";
 import { useHostTRPC } from "@posthog/host-router/react";
 import { Button } from "@posthog/quill";
+import { useChannels } from "@posthog/ui/features/canvas/hooks/useChannels";
+import { useCreateAndOpenDashboard } from "@posthog/ui/features/canvas/hooks/useDashboards";
+import { hostClient } from "@posthog/ui/features/canvas/hostClient";
 import {
   useFreeformChatStore,
   useFreeformThread,
 } from "@posthog/ui/features/canvas/stores/freeformChatStore";
+import { toast } from "@posthog/ui/primitives/toast";
+import {
+  navigateToChannelDashboard,
+  navigateToChannelNewTask,
+  navigateToChannelTask,
+} from "@posthog/ui/router/navigationBridge";
 import { ErrorBoundary } from "@posthog/ui/shell/ErrorBoundary";
 import { Flex, ScrollArea, Text } from "@radix-ui/themes";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { FreeformCanvas } from "./FreeformCanvas";
 import { FreeformChat } from "./FreeformChat";
 import { handleFreeformDataRequest } from "./freeformDataBridge";
@@ -25,9 +38,13 @@ import { registerFreeformSubscription } from "./freeformSubscription";
 export function FreeformCanvasView({
   threadId,
   interactive,
+  channelId,
+  dashboardId,
 }: {
   threadId: string;
   interactive: boolean;
+  channelId: string;
+  dashboardId: string;
 }) {
   const { code, versions, currentVersionId, runtimeError, isStreaming } =
     useFreeformThread(threadId);
@@ -35,6 +52,36 @@ export function FreeformCanvasView({
   const redo = useFreeformChatStore((s) => s.redo);
   const send = useFreeformChatStore((s) => s.send);
   const setRuntimeError = useFreeformChatStore((s) => s.setRuntimeError);
+  const loadRecord = useFreeformChatStore((s) => s.loadRecord);
+
+  // Only the channel's home canvas has a "default" template to reset to; regular
+  // canvases start blank. Gate the Reset action on this being the home canvas.
+  const { channels } = useChannels();
+  const isHomeCanvas = channels.some(
+    (c) => c.id === channelId && c.homeCanvasId === dashboardId,
+  );
+  const [isResetting, setIsResetting] = useState(false);
+
+  // Rebuild the home canvas from the default template. The host persists it and
+  // keeps the prior source as an undo step, so this is recoverable.
+  const onResetToDefault = useCallback(async () => {
+    setIsResetting(true);
+    try {
+      const record = await hostClient().dashboards.resetHomeCanvas.mutate({
+        channelId,
+      });
+      loadRecord(threadId, record);
+      toast.success("Canvas reset to default", {
+        description: "Undo to restore your previous version.",
+      });
+    } catch (error) {
+      toast.error("Couldn't reset canvas", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setIsResetting(false);
+    }
+  }, [channelId, threadId, loadRecord]);
 
   useEffect(() => registerFreeformSubscription(threadId), [threadId]);
 
@@ -74,6 +121,30 @@ export function FreeformCanvasView({
   const onRendered = useCallback(
     () => setRuntimeError(threadId, null),
     [threadId, setRuntimeError],
+  );
+
+  // Maps the canvas's allowlisted nav intent to real routing. channelId is
+  // host-supplied here (never from the iframe), so the canvas can only move
+  // within its own channel. The switch is exhaustive over the intent union.
+  const createAndOpen = useCreateAndOpenDashboard(channelId);
+  const onNavigate = useCallback(
+    (intent: CanvasNavIntent) => {
+      switch (intent.target) {
+        case "task":
+          navigateToChannelTask(channelId, intent.taskId);
+          break;
+        case "new-task":
+          navigateToChannelNewTask(channelId);
+          break;
+        case "canvas":
+          navigateToChannelDashboard(channelId, intent.dashboardId);
+          break;
+        case "new-canvas":
+          void createAndOpen();
+          break;
+      }
+    },
+    [channelId, createAndOpen],
   );
 
   // Q7 self-repair: hand the runtime error back to the agent to fix.
@@ -118,6 +189,18 @@ export function FreeformCanvasView({
                   v{idx + 1}/{versions.length}
                 </Text>
               )}
+              {isHomeCanvas && (
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="ml-1"
+                  disabled={isStreaming || isResetting}
+                  onClick={onResetToDefault}
+                >
+                  <ArrowCounterClockwiseIcon size={14} />
+                  {isResetting ? "Resetting…" : "Reset to default"}
+                </Button>
+              )}
             </Flex>
             {runtimeError && (
               <Flex align="center" gap="2">
@@ -147,6 +230,7 @@ export function FreeformCanvasView({
                 onDataRequest={handleFreeformDataRequest}
                 onError={onError}
                 onRendered={onRendered}
+                onNavigate={onNavigate}
                 analytics={analytics}
               />
             </ErrorBoundary>

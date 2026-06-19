@@ -51,6 +51,12 @@ interface FreeformChatStore {
   reset: (threadId: string) => Promise<void>;
   /** Seed a thread from a saved record (only if the thread is still empty). */
   ensureCode: (threadId: string, record: SavedFreeform) => void;
+  /**
+   * Replace the thread's code + history from a saved record, unconditionally.
+   * Unlike ensureCode, this overwrites existing content — used after a host-side
+   * mutation (e.g. reset-to-default) has already persisted the new record.
+   */
+  loadRecord: (threadId: string, record: SavedFreeform) => void;
   undo: (threadId: string) => void;
   redo: (threadId: string) => void;
   setRuntimeError: (threadId: string, message: string | null) => void;
@@ -193,6 +199,17 @@ export const useFreeformChatStore = create<FreeformChatStore>()((set, get) => {
         versions: record.versions ?? [],
         currentVersionId:
           record.currentVersionId ?? record.versions?.at(-1)?.id ?? null,
+      }));
+    },
+
+    loadRecord: (threadId, record) => {
+      patch(threadId, (prev) => ({
+        ...prev,
+        code: record.code ?? "",
+        versions: record.versions ?? [],
+        currentVersionId:
+          record.currentVersionId ?? record.versions?.at(-1)?.id ?? null,
+        runtimeError: null,
       }));
     },
 

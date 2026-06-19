@@ -132,9 +132,9 @@ describe("DashboardsService.ensureHomeCanvas", () => {
     expect(record.kind).toBe("freeform");
     expect(entries["new-1"]?.path).toBe("marketing/Home");
 
-    // Its seeded source queries the filesystem system table and bakes both ids.
+    // Its seeded source queries the file_system system table and bakes both ids.
     const meta = entries["new-1"]?.meta as { code?: string };
-    expect(meta.code).toContain("system.filesystem");
+    expect(meta.code).toContain("system.file_system");
     expect(meta.code).toContain("chan-1");
     expect(meta.code).toContain("new-1");
 

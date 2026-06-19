@@ -383,7 +383,7 @@ export class DashboardsService {
 
 // The seeded React source for a channel's home canvas. It runs in the freeform
 // sandbox (null-origin iframe), so its only data avenue is `window.ph.query`
-// (HogQL). It reads three lists from the `system.filesystem` HogQL table:
+// (HogQL). It reads three lists from the `system.file_system` HogQL table:
 //   - Canvases: this channel's `dashboard` rows (excluding the home canvas).
 //   - Inbox / to-dos: stubbed (no data source yet) with an assignee filter.
 //   - Tasks: this channel's filed `task` rows, newest first.
@@ -416,7 +416,7 @@ function lastSegment(path: string): string {
 // channel doesn't break the lists (the path, not the id, scopes child rows).
 async function resolveChannelPath(): Promise<string> {
   const res = await ph.query(
-    "SELECT path FROM system.filesystem WHERE id = " + sql(CHANNEL_ID) + " LIMIT 1",
+    "SELECT path FROM system.file_system WHERE id = " + sql(CHANNEL_ID) + " LIMIT 1",
   );
   const rows = (res && res.results) || [];
   return rows.length ? String(rows[0][0]) : "";
@@ -444,7 +444,7 @@ function useChannelRows(kind: "dashboard" | "task") {
       const exclude =
         kind === "dashboard" ? " AND id != " + sql(HOME_CANVAS_ID) : "";
       const query =
-        "SELECT id, path, ref, created_at FROM system.filesystem" +
+        "SELECT id, path, ref, created_at FROM system.file_system" +
         " WHERE type = " + sql(kind) +
         " AND surface = 'desktop'" +
         " AND startsWith(path, " + sql(prefix) + ")" +

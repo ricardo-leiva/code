@@ -42,7 +42,11 @@ export async function runHogQLQuery(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        query: { kind: "HogQLQuery", query: hogql },
+        // `tags.productKey` attributes the query to a product so PostHog's
+        // query-tagging guard is satisfied (it hard-fails untagged ClickHouse
+        // queries in local dev). The desktop canvas/dashboard surfaces are the
+        // "max" product.
+        query: { kind: "HogQLQuery", query: hogql, tags: { productKey: "max" } },
         ...(opts?.refresh ? { refresh: opts.refresh } : {}),
       }),
     },
